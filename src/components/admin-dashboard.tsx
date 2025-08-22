@@ -25,12 +25,15 @@ export function AdminDashboard() {
 
   useEffect(() => {
     setIsClient(true);
-    const unsubscribe = getVerificationLog((newLogs) => {
-        if(user?.email) {
-            setLog(newLogs);
-        }
-    });
-    return () => unsubscribe();
+    let unsubscribe: () => void;
+    if (user?.email) {
+      unsubscribe = getVerificationLog(setLog);
+    }
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [user]);
   
   return (

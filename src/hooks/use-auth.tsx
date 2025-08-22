@@ -45,7 +45,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const checkAdminStatus = useCallback(async (user: User | null) => {
     if (user?.uid) {
-      await createUserDocument(user.uid, user.email!);
       const adminStatus = await isAdmin(user.uid);
       setIsAdminUser(adminStatus);
     } else {
@@ -55,8 +54,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      await checkAdminStatus(user);
+      if (user) {
+        await createUserDocument(user.uid, user.email!);
+        setUser(user);
+        await checkAdminStatus(user);
+      } else {
+        setUser(null);
+        setIsAdminUser(false);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
@@ -82,7 +87,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signup = async (email: string, pass: string) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-    await createUserDocument(userCredential.user.uid, userCredential.user.email!);
+    // createUserDocument is now called in onAuthStateChanged
     await checkAdminStatus(userCredential.user);
     return userCredential;
   };
@@ -113,16 +118,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   
   const isAuthPage = pathname === '/login' || pathname === '/signup';
   
-  if (loading) {
+  if (loading || (!user && !isAuthPage) || (user && isAuthPage)) {
     return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
-  }
-
-  if (!user && !isAuthPage) {
-     return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
-  }
-  
-  if (user && isAuthPage) {
-      return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
   }
 
   return (

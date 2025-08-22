@@ -13,12 +13,10 @@ import {
   SidebarProvider,
   SidebarInset,
   SidebarFooter,
-  SidebarTrigger,
   SidebarContent,
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
-  Settings,
   User,
   LayoutDashboard,
   LogOut,
@@ -91,8 +89,8 @@ function NavItem({
   const pathname = usePathname();
   const isActive = pathname === href;
   return (
-    <Link href={href} legacyBehavior passHref>
-      <SidebarMenuButton isActive={isActive}>{children}</SidebarMenuButton>
+    <Link href={href} passHref>
+      <SidebarMenuButton asChild isActive={isActive}>{children}</SidebarMenuButton>
     </Link>
   );
 }

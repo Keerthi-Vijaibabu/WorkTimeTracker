@@ -10,8 +10,10 @@ import { CreateProjectForm } from './create-project-form';
 import { AssignTaskForm } from './assign-task-form';
 import { Badge } from './ui/badge';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/use-auth';
 
 export function ProjectManagement() {
+  const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
 
@@ -24,9 +26,10 @@ export function ProjectManagement() {
   }
 
   useEffect(() => {
+    if (!user) return; // Don't fetch until user is authenticated
     fetchProjects();
     fetchTasks();
-  }, []);
+  }, [user]);
 
   const handleProjectCreated = (newProject: Project) => {
     setProjects(prev => [...prev, newProject]);
@@ -134,3 +137,5 @@ export function ProjectManagement() {
     </div>
   );
 }
+
+    

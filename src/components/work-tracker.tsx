@@ -140,6 +140,8 @@ export function WorkTracker() {
   }, []);
 
   useEffect(() => {
+    if (!user) return; // Don't fetch data until user is loaded
+
     fetchMyTasks();
     fetchProjects();
     
@@ -153,7 +155,7 @@ export function WorkTracker() {
         unsubscribe();
       }
     };
-  }, [fetchMyTasks, fetchProjects, user?.uid]);
+  }, [user, fetchMyTasks, fetchProjects]);
 
   const handleStart = async (task: Task | null = null) => {
     let projectToStart = '';
@@ -418,3 +420,5 @@ export function WorkTracker() {
     </div>
   );
 }
+
+    

@@ -14,7 +14,7 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter, usePathname } from 'next/navigation';
-import { isAdmin, createUserDocument } from "@/lib/data";
+import { isAdmin as checkIsAdmin, createUserDocument } from "@/lib/data";
 
 type AuthContextType = {
   user: User | null;
@@ -43,21 +43,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  const checkAdminStatus = useCallback(async (user: User | null) => {
-    if (user?.uid) {
-      const adminStatus = await isAdmin(user.uid);
-      setIsAdminUser(adminStatus);
-    } else {
-      setIsAdminUser(false);
-    }
-  }, []);
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        await createUserDocument(user.uid, user.email!);
         setUser(user);
-        await checkAdminStatus(user);
+        await createUserDocument(user.uid, user.email!);
+        const adminStatus = await checkIsAdmin(user.uid);
+        setIsAdminUser(adminStatus);
       } else {
         setUser(null);
         setIsAdminUser(false);
@@ -65,31 +57,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [checkAdminStatus]);
-
-  useEffect(() => {
-    if (loading) return;
-
-    const isAuthPage = pathname === '/login' || pathname === '/signup';
-
-    if (!user && !isAuthPage) {
-      router.push('/login');
-    } else if (user && isAuthPage) {
-      router.push('/');
-    }
-  }, [user, loading, router, pathname]);
+  }, []);
 
   const login = async (email: string, pass: string) => {
-    const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-    await checkAdminStatus(userCredential.user);
-    return userCredential;
+    return signInWithEmailAndPassword(auth, email, pass);
   };
 
   const signup = async (email: string, pass: string) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-    // createUserDocument is now called in onAuthStateChanged
-    await checkAdminStatus(userCredential.user);
-    return userCredential;
+    return createUserWithEmailAndPassword(auth, email, pass);
   };
 
   const logout = () => {
@@ -115,11 +90,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     logout,
     changePassword,
   };
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
+  }
   
   const isAuthPage = pathname === '/login' || pathname === '/signup';
-  
-  if (loading || (!user && !isAuthPage) || (user && isAuthPage)) {
+  if (!user && !isAuthPage) {
+    router.push('/login');
+    // Show loading while redirecting
     return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
+  }
+  
+  if(user && isAuthPage) {
+      router.push('/');
+      return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
   }
 
   return (

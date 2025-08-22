@@ -1,67 +1,44 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    function isAuth() {
-      return request.auth != null;
+
+    function getRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
     }
 
-    function isOwner(userId) {
-      return isAuth() && request.auth.uid == userId;
-    }
-    
-    function isUser(email) {
-        return isAuth() && request.auth.token.email == email;
+    function isAuthOwner(docData) {
+      return request.auth.uid == docData.userEmail;
     }
 
     function isAdmin() {
-      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'admin';
+      return getRole(request.auth.uid) == 'admin';
     }
 
-    match /users/{userId} {
-      // Admins can read and write any user document.
-      // Workers can only read their own document.
-      allow read: if isUser(userId) || isAdmin();
+    match /users/{email} {
+      allow read: if request.auth.uid != null;
       allow write: if isAdmin();
-      allow create: if isAuth();
-    }
-
-    match /userSessions/{sessionId} {
-      // Users can create their own sessions.
-      // Admins can read all sessions, but users can only read their own.
-      allow read: if isAdmin() || (isAuth() && request.auth.token.email == resource.data.userEmail);
-      allow create: if isAuth();
-      // Users cannot update or delete sessions.
-      allow update, delete: if false;
-    }
-
-    match /verificationLog/{logId} {
-      // Users can create their own verification logs.
-      // Admins can read all logs, but users can only read their own.
-       allow read: if isAdmin() || (isAuth() && request.auth.token.email == resource.data.userEmail);
-       allow create: if isAuth();
-       // Logs are immutable.
-       allow update, delete: if false;
+      allow create: if request.auth.uid != null;
     }
 
     match /projects/{projectId} {
-        // Any authenticated user can read projects.
-        allow read: if isAuth();
-        // Only admins can create, update, or delete projects.
-        allow write: if isAdmin();
+      allow read: if request.auth.uid != null;
+      allow write: if isAdmin();
+    }
+    
+    match /tasks/{taskId} {
+      allow read: if request.auth.uid != null;
+      allow write: if isAdmin();
     }
 
-    match /tasks/{taskId} {
-        // Any authenticated user can read tasks.
-        allow read: if isAuth();
-        // Admins can create tasks.
-        allow create: if isAdmin();
-        // Only the assigned user can update the task status.
-        allow update: if isAuth() && request.auth.token.email == resource.data.assignedTo;
-        // Only admins can delete tasks.
-        allow delete: if isAdmin();
+    match /userSessions/{sessionId} {
+      allow read: if isAuthOwner(resource.data) || isAdmin();
+      allow create: if isAuthOwner(request.resource.data);
+    }
+    
+    match /verificationLog/{logId} {
+      allow read: if isAuthOwner(resource.data) || isAdmin();
+      allow create: if isAuthOwner(request.resource.data);
     }
   }
 }

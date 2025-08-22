@@ -65,7 +65,7 @@ export function AssignTaskForm({ projects, onTaskAssigned }: AssignTaskFormProps
     };
 
     return (
-        <Card>
+        <Card className="border-primary/20">
             <CardHeader>
                 <CardTitle>Assign New Task</CardTitle>
                 <CardDescription>Assign a task to a user for a specific project.</CardDescription>

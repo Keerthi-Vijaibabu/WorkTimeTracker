@@ -220,9 +220,9 @@ export function WorkTracker() {
   }, []);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 p-4 md:p-6">
       <div className="lg:col-span-3 flex flex-col gap-8">
-        <Card className="shadow-lg">
+        <Card className="shadow-lg border-primary/20">
           <CardHeader>
             <CardTitle>Time Tracker</CardTitle>
             <CardDescription>{activeTask ? `Working on: "${activeTask.description}"` : "Select a project, then start your work session."}</CardDescription>
@@ -241,7 +241,7 @@ export function WorkTracker() {
                     </SelectContent>
                 </Select>
             </div>
-            <p className="text-6xl font-bold tabular-nums tracking-tighter" style={{color: 'hsl(var(--primary))'}}>{isClient ? formatTime(elapsedTime) : '00:00:00'}</p>
+            <p className="text-6xl font-bold tabular-nums tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent py-2">{isClient ? formatTime(elapsedTime) : '00:00:00'}</p>
           </CardContent>
           <CardFooter className="flex justify-center gap-4">
             {!isRunning ? (
@@ -256,7 +256,7 @@ export function WorkTracker() {
           </CardFooter>
         </Card>
 
-        <Card className="shadow-lg">
+        <Card className="shadow-lg border-primary/20">
             <CardHeader>
                 <CardTitle>My Assigned Tasks</CardTitle>
                 <CardDescription>Click the play button on a task to start tracking time for it.</CardDescription>
@@ -313,7 +313,7 @@ export function WorkTracker() {
       </div>
 
       <div className="lg:col-span-2 flex flex-col gap-8">
-        <Card className="shadow-lg">
+        <Card className="shadow-lg border-primary/20">
           <CardHeader>
             <CardTitle>AI Assistant</CardTitle>
             <CardDescription>Get a project suggestion for a new task.</CardDescription>
@@ -345,7 +345,7 @@ export function WorkTracker() {
             </div>
           </CardContent>
         </Card>
-         <Card className="shadow-lg">
+         <Card className="shadow-lg border-primary/20">
           <CardHeader>
             <CardTitle>Session History</CardTitle>
             <CardDescription>A log of your recent work sessions.</CardDescription>

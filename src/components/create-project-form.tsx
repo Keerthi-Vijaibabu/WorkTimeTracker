@@ -53,7 +53,7 @@ export function CreateProjectForm({ onProjectCreated }: CreateProjectFormProps) 
     };
 
     return (
-        <Card>
+        <Card className="border-primary/20">
             <CardHeader>
                 <CardTitle>Create New Project</CardTitle>
                 <CardDescription>Add a new project to the system.</CardDescription>

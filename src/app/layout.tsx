@@ -3,6 +3,7 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/hooks/use-auth";
+import { AppLayout } from "@/components/app-layout";
 
 export const metadata: Metadata = {
   title: "WorkTracker",
@@ -30,7 +31,11 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased h-full">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <AppLayout>
+              {children}
+            </AppLayout>
+          </AuthProvider>
           <Toaster />
         </ThemeProvider>
       </body>

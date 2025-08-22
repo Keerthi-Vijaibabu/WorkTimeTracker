@@ -31,7 +31,7 @@ export function ProjectManagement() {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div className="space-y-6">
         <CreateProjectForm onProjectCreated={handleProjectCreated} />
-        <Card>
+        <Card className="border-primary/20">
           <CardHeader>
             <CardTitle>Projects</CardTitle>
             <CardDescription>List of all created projects.</CardDescription>
@@ -68,7 +68,7 @@ export function ProjectManagement() {
       </div>
       <div className="space-y-6">
         <AssignTaskForm projects={projects} onTaskAssigned={handleTaskAssigned} />
-        <Card>
+        <Card className="border-primary/20">
           <CardHeader>
             <CardTitle>Assigned Tasks</CardTitle>
             <CardDescription>List of all assigned tasks.</CardDescription>
@@ -97,7 +97,7 @@ export function ProjectManagement() {
                                     'bg-gray-500': task.status === 'todo',
                                     'bg-blue-500': task.status === 'inprogress',
                                     'bg-green-500': task.status === 'done',
-                                })}
+                                }, 'text-white')}
                             >
                                 {task.status}
                             </Badge>

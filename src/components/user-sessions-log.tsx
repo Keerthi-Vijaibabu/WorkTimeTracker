@@ -53,7 +53,7 @@ export function UserSessionsLog() {
 
 
   return (
-    <Card className="shadow-lg">
+    <Card className="shadow-lg border-primary/20">
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>

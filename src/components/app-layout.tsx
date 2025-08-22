@@ -24,11 +24,15 @@ import {
   Sun,
   Shield,
   Briefcase,
+  KeyRound,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { ChangePasswordDialog } from "./change-password-dialog";
+
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -90,7 +94,9 @@ function NavItem({
   const isActive = pathname === href;
   return (
     <Link href={href}>
-      <SidebarMenuButton asChild isActive={isActive}>{children}</SidebarMenuButton>
+      <SidebarMenuButton asChild isActive={isActive}>
+        <span className="flex w-full items-center gap-2">{children}</span>
+      </SidebarMenuButton>
     </Link>
   );
 }
@@ -109,20 +115,38 @@ function ThemeToggle() {
 function UserMenu() {
     const { user, logout } = useAuth();
     const { open } = useSidebar();
+    const [isChangePasswordOpen, setIsChangePasswordOpen] = React.useState(false);
+
     return (
-        <div className="flex items-center gap-2 p-2">
-            <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.photoURL || ''} />
-                <AvatarFallback>{user?.email?.[0].toUpperCase()}</AvatarFallback>
-            </Avatar>
-            {open && 
-                <div className="flex-1 overflow-hidden">
-                    <p className="text-sm font-medium truncate">{user?.email}</p>
-                </div>
-            }
-             <Button variant="ghost" size="icon" onClick={logout}>
-                <LogOut className="h-4 w-4" />
-             </Button>
-        </div>
+        <>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <div className="flex items-center gap-2 p-2 cursor-pointer rounded-md hover:bg-muted">
+                        <Avatar className="h-8 w-8">
+                            <AvatarImage src={user?.photoURL || ''} />
+                            <AvatarFallback>{user?.email?.[0].toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        {open && 
+                            <div className="flex-1 overflow-hidden">
+                                <p className="text-sm font-medium truncate">{user?.email}</p>
+                            </div>
+                        }
+                    </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="right" align="end" className="w-56">
+                    <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setIsChangePasswordOpen(true)}>
+                        <KeyRound className="mr-2 h-4 w-4" />
+                        <span>Change Password</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={logout}>
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Log out</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <ChangePasswordDialog open={isChangePasswordOpen} onOpenChange={setIsChangePasswordOpen} />
+        </>
     )
 }

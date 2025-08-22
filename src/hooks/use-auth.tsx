@@ -8,6 +8,9 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter, usePathname } from 'next/navigation';
@@ -18,6 +21,7 @@ type AuthContextType = {
   login: (email: string, pass: string) => Promise<any>;
   signup: (email: string, pass: string) => Promise<any>;
   logout: () => Promise<any>;
+  changePassword: (currentPass: string, newPass: string) => Promise<any>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -26,6 +30,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   signup: async () => {},
   logout: async () => {},
+  changePassword: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -66,12 +71,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return signOut(auth);
   };
   
+  const changePassword = async (currentPass: string, newPass: string) => {
+    if (!user || !user.email) {
+      throw new Error("User not authenticated.");
+    }
+    const credential = EmailAuthProvider.credential(user.email, currentPass);
+    await reauthenticateWithCredential(user, credential);
+    await updatePassword(user, newPass);
+  }
+  
   const value = {
     user,
     loading,
     login,
     signup,
     logout,
+    changePassword,
   };
 
   if (loading) {

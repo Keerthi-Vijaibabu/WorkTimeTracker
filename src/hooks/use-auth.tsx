@@ -14,7 +14,7 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter, usePathname } from 'next/navigation';
-import { isAdmin, createUserDocument, seedData } from "@/lib/data";
+import { isAdmin, createUserDocument } from "@/lib/data";
 
 type AuthContextType = {
   user: User | null;
@@ -42,14 +42,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAdminUser, setIsAdminUser] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  
-  useEffect(() => {
-    // Seed non-user specific data if necessary
-    seedData();
-  }, [])
 
   const checkAdminStatus = useCallback(async (user: User | null) => {
     if (user?.uid) {
+      // Ensure user document exists before checking admin status
+      await createUserDocument(user.uid, user.email!);
       const adminStatus = await isAdmin(user.uid);
       setIsAdminUser(adminStatus);
     } else {
@@ -88,7 +85,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
     // Create a corresponding user document in Firestore
     await createUserDocument(userCredential.user.uid, userCredential.user.email!);
-    setIsAdminUser(false); // New users are always workers by default
+    // Re-check admin status after creation
+    await checkAdminStatus(userCredential.user);
     return userCredential;
   };
 

@@ -48,14 +48,10 @@ export type User = {
     role: 'admin' | 'worker';
 }
 
-// Seeding initial users is tricky with UID-based documents.
-// We'll now handle user document creation on first sign-up via the `isAdmin` check.
-// This seed function can be used for other collections if needed in the future.
 export const seedData = async () => {
     // This function can be expanded to seed projects, etc.
     console.log('Seeding data if needed...');
 };
-
 
 export const getUsers = async (): Promise<User[]> => {
     const usersCol = collection(db, 'users');
@@ -64,7 +60,6 @@ export const getUsers = async (): Promise<User[]> => {
 };
 
 export const updateUserRole = async (userId: string, role: 'admin' | 'worker') => {
-    // userId is now the UID
     const userRef = doc(db, "users", userId);
     await updateDoc(userRef, { role });
 };

@@ -37,6 +37,11 @@ export function WorkTracker() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationPhoto, setVerificationPhoto] = useState<string | null>(null);
 
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const { toast } = useToast();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -170,9 +175,9 @@ export function WorkTracker() {
                   {sessions.length > 0 ? (
                     sessions.map((session, index) => (
                       <TableRow key={index}>
-                        <TableCell>{session.startTime.toLocaleDateString()}</TableCell>
-                        <TableCell>{session.startTime.toLocaleTimeString()}</TableCell>
-                        <TableCell>{session.stopTime.toLocaleTimeString()}</TableCell>
+                        <TableCell>{isClient ? session.startTime.toLocaleDateString() : ''}</TableCell>
+                        <TableCell>{isClient ? session.startTime.toLocaleTimeString() : ''}</TableCell>
+                        <TableCell>{isClient ? session.stopTime.toLocaleTimeString() : ''}</TableCell>
                         <TableCell className="text-right">{formatTime(session.duration)}</TableCell>
                       </TableRow>
                     ))
@@ -266,3 +271,5 @@ export function WorkTracker() {
     </div>
   );
 }
+
+    

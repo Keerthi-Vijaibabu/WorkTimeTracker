@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -7,12 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Play, Square, BrainCircuit, Loader2 } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useAuth } from '@/hooks/use-auth';
 
 type Session = {
   startTime: Date;
@@ -20,11 +21,19 @@ type Session = {
   duration: number;
 };
 
+export type UserSession = Session & {
+    userEmail: string | null;
+}
+
 // This is a mock storage. In a real app, you'd use a database.
 const verificationLog: { photoDataUri: string, result: VerifyWorkingOutput, timestamp: Date }[] = [];
 export const getVerificationLog = () => verificationLog;
 
+const allUserSessions: UserSession[] = [];
+export const getUserSessions = () => allUserSessions;
+
 export function WorkTracker() {
+  const { user } = useAuth();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [startTime, setStartTime] = useState<Date | null>(null);
@@ -131,7 +140,18 @@ export function WorkTracker() {
   const handleStop = () => {
     if (startTime) {
       const stopTime = new Date();
-      setSessions(prev => [{ startTime, stopTime, duration: stopTime.getTime() - startTime.getTime() }, ...prev]);
+      const newSession: Session = { 
+        startTime, 
+        stopTime, 
+        duration: stopTime.getTime() - startTime.getTime() 
+      };
+      setSessions(prev => [newSession, ...prev]);
+      
+      const userSession: UserSession = {
+        ...newSession,
+        userEmail: user?.email || 'Anonymous',
+      }
+      allUserSessions.unshift(userSession);
     }
     setIsRunning(false);
   };
@@ -270,3 +290,4 @@ export function WorkTracker() {
     </div>
   );
 }
+

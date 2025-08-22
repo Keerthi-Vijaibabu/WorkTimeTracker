@@ -25,19 +25,19 @@ export function Dashboard() {
                     <span className="sr-only">Toggle theme</span>
                 </Button>
             </div>
-            <Tabs defaultValue="tracker" className="w-full">
-                <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                    <TabsTrigger value="tracker">Work Tracker</TabsTrigger>
-                    {isAdmin && <TabsTrigger value="admin">Admin View</TabsTrigger>}
-                </TabsList>
-                <TabsContent value="tracker">
-                    <Card>
-                        <CardContent className="pt-6">
-                            <WorkTracker />
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                {isAdmin && (
+            {isAdmin ? (
+                 <Tabs defaultValue="tracker" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="tracker">Work Tracker</TabsTrigger>
+                        <TabsTrigger value="admin">Admin View</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="tracker">
+                        <Card>
+                            <CardContent className="pt-6">
+                                <WorkTracker />
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
                     <TabsContent value="admin">
                         <Card>
                             <CardContent className="pt-6">
@@ -45,8 +45,14 @@ export function Dashboard() {
                             </CardContent>
                         </Card>
                     </TabsContent>
-                )}
-            </Tabs>
+                </Tabs>
+            ) : (
+                <Card>
+                    <CardContent className="pt-6">
+                        <WorkTracker />
+                    </CardContent>
+                </Card>
+            )}
         </div>
     )
 }

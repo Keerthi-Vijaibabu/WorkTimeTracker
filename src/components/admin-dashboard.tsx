@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { getVerificationLog, getUserSessions, type UserSession } from '@/components/work-tracker';
+import { getVerificationLog } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserSessionsLog } from './user-sessions-log';
+import { ProjectManagement } from './project-management';
 
 
 export function AdminDashboard() {
@@ -34,9 +35,10 @@ export function AdminDashboard() {
 
   return (
     <Tabs defaultValue="sessions">
-      <TabsList className="grid w-full grid-cols-2">
+      <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="sessions">User Sessions</TabsTrigger>
         <TabsTrigger value="verification">Verification Log</TabsTrigger>
+        <TabsTrigger value="projects">Project Management</TabsTrigger>
       </TabsList>
       <TabsContent value="sessions">
           <UserSessionsLog />
@@ -106,7 +108,9 @@ export function AdminDashboard() {
           </CardContent>
         </Card>
       </TabsContent>
+      <TabsContent value="projects">
+        <ProjectManagement />
+      </TabsContent>
     </Tabs>
   );
 }
-

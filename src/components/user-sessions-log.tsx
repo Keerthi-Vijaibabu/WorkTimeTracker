@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getUserSessions, type UserSession } from '@/components/work-tracker';
+import { getUserSessions, type UserSession, getProjects } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -40,7 +40,7 @@ export function UserSessionsLog() {
 
   const { users, projects, filteredSessions } = useMemo(() => {
     const users = ['all', ...Array.from(new Set(sessions.map(s => s.userEmail).filter(Boolean))) as string[]];
-    const projects = ['all', ...Array.from(new Set(sessions.map(s => s.project)))];
+    const projects = ['all', ...Array.from(new Set(getProjects().map(p => p.name)))];
 
     const filteredSessions = sessions.filter(session => {
       const userMatch = selectedUser === 'all' || session.userEmail === selectedUser;

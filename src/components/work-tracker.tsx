@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { suggestProject, type SuggestProjectOutput } from '@/ai/flows/suggest-project-flow';
-import { verifyWorking, type VerifyWorkingOutput } from '@/ai/flows/verify-working-flow';
+import { verifyWorking } from '@/ai/flows/verify-working-flow';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,32 +16,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/hooks/use-auth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import type { Session, UserSession } from '@/lib/data';
+import { addUserSession, addVerificationLog, getProjects } from '@/lib/data';
 
-type Session = {
-  startTime: Date;
-  stopTime: Date;
-  duration: number;
-};
-
-export type UserSession = Session & {
-    userEmail: string | null;
-    project: string;
-}
-
-// This is a mock storage. In a real app, you'd use a database.
-const verificationLog: { photoDataUri: string, result: VerifyWorkingOutput, timestamp: Date }[] = [];
-export const getVerificationLog = () => verificationLog;
-
-const allUserSessions: UserSession[] = [];
-export const getUserSessions = () => allUserSessions;
-
-const recentProjects = [
-    { name: "Website Redesign", date: "2024-07-20T10:00:00Z", client: "Innovate Inc." },
-    { name: "Mobile App Dev", date: "2024-07-19T15:30:00Z", client: "TechCorp" },
-    { name: "API Integration", date: "2024-07-18T11:00:00Z", client: "Innovate Inc." },
-    { name: "Marketing Campaign", date: "2024-07-17T09:00:00Z", client: "Growth Co." },
-];
-  
 export function WorkTracker() {
   const { user } = useAuth();
   const [isRunning, setIsRunning] = useState(false);
@@ -49,6 +26,7 @@ export function WorkTracker() {
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentProject, setCurrentProject] = useState('');
+  const [projects, setProjects] = useState(getProjects());
 
   const [taskDescription, setTaskDescription] = useState('');
   const [suggestion, setSuggestion] = useState<SuggestProjectOutput | null>(null);
@@ -113,7 +91,7 @@ export function WorkTracker() {
       try {
         const previousTasks = sessions.map(s => `Worked for ${formatTime(s.duration)} on ${s.startTime.toLocaleDateString()}`);
         const result = await verifyWorking({ photoDataUri, previousTasks: previousTasks.slice(0, 3) });
-        verificationLog.unshift({ photoDataUri, result, timestamp: new Date() });
+        addVerificationLog({ photoDataUri, result, timestamp: new Date() });
         console.log("Work verification successful", result);
       } catch (error) {
         console.error("Automatic verification failed", error);
@@ -174,7 +152,7 @@ export function WorkTracker() {
         userEmail: user?.email || 'Anonymous',
         project: currentProject,
       }
-      allUserSessions.unshift(userSession);
+      addUserSession(userSession);
     }
     setIsRunning(false);
   };
@@ -187,7 +165,12 @@ export function WorkTracker() {
     setIsSuggesting(true);
     setSuggestion(null);
     try {
-      const result = await suggestProject({ currentTaskDescription: taskDescription, recentProjects });
+      const recentProjectsForSuggestion = projects.map(p => ({
+        name: p.name,
+        client: p.client,
+        date: new Date().toISOString() // Using current date as a placeholder
+      }));
+      const result = await suggestProject({ currentTaskDescription: taskDescription, recentProjects: recentProjectsForSuggestion });
       setSuggestion(result);
       if (result.suggestedProjectName) {
         setCurrentProject(result.suggestedProjectName);
@@ -199,6 +182,10 @@ export function WorkTracker() {
       setIsSuggesting(false);
     }
   };
+
+  useEffect(() => {
+    setProjects(getProjects());
+  }, []);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
@@ -216,8 +203,8 @@ export function WorkTracker() {
                         <SelectValue placeholder="Select a project" />
                     </SelectTrigger>
                     <SelectContent>
-                        {recentProjects.map(p => (
-                            <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                        {projects.map(p => (
+                            <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
                         ))}
                     </SelectContent>
                 </Select>

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { getVerificationLog } from '@/lib/data';
+import { getVerificationLog, type VerificationLogEntry } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,24 +15,24 @@ import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserSessionsLog } from './user-sessions-log';
 import { ProjectManagement } from './project-management';
+import { useAuth } from '@/hooks/use-auth';
 
 
 export function AdminDashboard() {
-  const [log, setLog] = useState(getVerificationLog());
+  const { user } = useAuth();
+  const [log, setLog] = useState<VerificationLogEntry[]>([]);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
-    const interval = setInterval(() => {
-      setLog([...getVerificationLog()]);
-    }, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleRefresh = () => {
-    setLog([...getVerificationLog()]);
-  }
-
+    const unsubscribe = getVerificationLog((newLogs) => {
+        if(user?.email) {
+            setLog(newLogs);
+        }
+    });
+    return () => unsubscribe();
+  }, [user]);
+  
   return (
     <div className="p-4 md:p-6">
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
@@ -53,7 +53,6 @@ export function AdminDashboard() {
                   <CardTitle>Work Verification Log</CardTitle>
                   <CardDescription>Automatic checks performed on the user.</CardDescription>
                 </div>
-                <Button onClick={handleRefresh}>Refresh</Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -61,6 +60,7 @@ export function AdminDashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>User</TableHead>
                       <TableHead>Timestamp</TableHead>
                       <TableHead>Screenshot</TableHead>
                       <TableHead>Result</TableHead>
@@ -69,10 +69,11 @@ export function AdminDashboard() {
                   </TableHeader>
                   <TableBody>
                     {log.length > 0 ? (
-                      log.map((entry, index) => (
-                        <TableRow key={index}>
+                      log.map((entry) => (
+                        <TableRow key={entry.id}>
+                           <TableCell>{entry.userEmail}</TableCell>
                           <TableCell className="whitespace-nowrap">
-                            {isClient ? entry.timestamp.toLocaleString() : ''}
+                            {isClient ? entry.timestamp.toDate().toLocaleString() : ''}
                           </TableCell>
                           <TableCell>
                             <div className="relative w-40 h-32 rounded-md overflow-hidden border">
@@ -99,7 +100,7 @@ export function AdminDashboard() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                           No verification data yet. The user needs to start the timer.
                         </TableCell>
                       </TableRow>

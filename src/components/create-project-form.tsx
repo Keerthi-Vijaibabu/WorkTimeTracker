@@ -20,7 +20,7 @@ export function CreateProjectForm({ onProjectCreated }: CreateProjectFormProps) 
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim() || !client.trim()) {
             toast({
@@ -33,7 +33,7 @@ export function CreateProjectForm({ onProjectCreated }: CreateProjectFormProps) 
 
         setIsLoading(true);
         try {
-            const newProject = addProject({ name, client });
+            const newProject = await addProject({ name, client });
             onProjectCreated(newProject);
             toast({
                 title: 'Project Created',

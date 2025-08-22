@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,8 +12,21 @@ import { Badge } from './ui/badge';
 import { cn } from '@/lib/utils';
 
 export function ProjectManagement() {
-  const [projects, setProjects] = useState<Project[]>(getProjects());
-  const [tasks, setTasks] = useState<Task[]>(getTasks());
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  const fetchProjects = async () => {
+    setProjects(await getProjects());
+  }
+
+  const fetchTasks = async () => {
+    setTasks(await getTasks());
+  }
+
+  useEffect(() => {
+    fetchProjects();
+    fetchTasks();
+  }, []);
 
   const handleProjectCreated = (newProject: Project) => {
     setProjects(prev => [...prev, newProject]);
@@ -21,6 +34,7 @@ export function ProjectManagement() {
 
   const handleTaskAssigned = (newTask: Task) => {
     setTasks(prev => [...prev, newTask]);
+    fetchTasks();
   }
 
   const getProjectName = (projectId: string) => {

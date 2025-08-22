@@ -16,8 +16,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/hooks/use-auth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import type { Session, UserSession, Task } from '@/lib/data';
+import type { Session, UserSession, Task, Project } from '@/lib/data';
 import { addUserSession, addVerificationLog, getProjects, getTasks, updateTaskStatus, getProjectById } from '@/lib/data';
+import { Timestamp } from 'firebase/firestore';
+
 
 export function WorkTracker() {
   const { user } = useAuth();
@@ -26,7 +28,7 @@ export function WorkTracker() {
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentProject, setCurrentProject] = useState('');
-  const [projects, setProjects] = useState(getProjects());
+  const [projects, setProjects] = useState<Project[]>([]);
   const [myTasks, setMyTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
@@ -57,12 +59,10 @@ export function WorkTracker() {
   
   const getCameraPermission = async () => {
     if (typeof window === 'undefined') return false;
-    if (hasCameraPermission) return true;
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({video: true});
       setHasCameraPermission(true);
-
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
@@ -80,7 +80,7 @@ export function WorkTracker() {
   };
 
   const handleVerifyWorking = useCallback(async () => {
-    if (!videoRef.current || !hasCameraPermission) return;
+    if (!videoRef.current || !videoRef.current.srcObject) return;
 
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
@@ -94,14 +94,16 @@ export function WorkTracker() {
       try {
         const previousTasks = sessions.map(s => `Worked for ${formatTime(s.duration)} on ${s.startTime.toLocaleDateString()}`);
         const result = await verifyWorking({ photoDataUri, previousTasks: previousTasks.slice(0, 3) });
-        addVerificationLog({ photoDataUri, result, timestamp: new Date() });
+        if(user?.email){
+            await addVerificationLog({ photoDataUri, result, timestamp: Timestamp.now(), userEmail: user.email });
+        }
         console.log("Work verification successful", result);
       } catch (error) {
         console.error("Automatic verification failed", error);
         // We don't show a toast here to keep it hidden from the user
       }
     }
-  }, [hasCameraPermission, sessions, formatTime]);
+  }, [sessions, formatTime, user]);
   
   useEffect(() => {
     if (isRunning) {
@@ -124,17 +126,23 @@ export function WorkTracker() {
     };
   }, [isRunning, startTime, handleVerifyWorking]);
   
-  const fetchMyTasks = useCallback(() => {
+  const fetchMyTasks = useCallback(async () => {
     if (user?.email) {
-        const allTasks = getTasks();
+        const allTasks = await getTasks();
         const userTasks = allTasks.filter(task => task.assignedTo === user.email && task.status !== 'done');
         setMyTasks(userTasks);
     }
   }, [user?.email]);
+  
+  const fetchProjects = useCallback(async () => {
+    const projectList = await getProjects();
+    setProjects(projectList);
+  }, []);
 
   useEffect(() => {
     fetchMyTasks();
-  }, [fetchMyTasks]);
+    fetchProjects();
+  }, [fetchMyTasks, fetchProjects]);
 
   const handleStart = async (task: Task | null = null) => {
     let projectToStart = '';
@@ -146,14 +154,14 @@ export function WorkTracker() {
     }
     
     if (task) {
-        const project = getProjectById(task.projectId);
+        const project = await getProjectById(task.projectId);
         if(project) {
             projectToStart = project.name;
             setCurrentProject(project.name);
             setTaskDescription(task.description);
             setActiveTask(task);
-            updateTaskStatus(task.id, 'inprogress');
-            fetchMyTasks();
+            await updateTaskStatus(task.id, 'inprogress');
+            await fetchMyTasks();
         } else {
              toast({ variant: 'destructive', title: 'Error', description: 'Project for this task not found.' });
              return;
@@ -176,7 +184,7 @@ export function WorkTracker() {
     setElapsedTime(0);
   };
 
-  const handleStop = () => {
+  const handleStop = async () => {
     if (startTime) {
       const stopTime = new Date();
       const newSession: Session = { 
@@ -186,22 +194,29 @@ export function WorkTracker() {
       };
       setSessions(prev => [newSession, ...prev]);
       
-      const userSession: UserSession = {
-        ...newSession,
+      const userSession: Omit<UserSession, 'id'> = {
+        startTime: Timestamp.fromDate(startTime),
+        stopTime: Timestamp.fromDate(stopTime),
+        duration: newSession.duration,
         userEmail: user?.email || 'Anonymous',
         project: currentProject,
       }
-      addUserSession(userSession);
+      await addUserSession(userSession);
     }
     setIsRunning(false);
-    setActiveTask(null);
+    
+    if(activeTask){
+        await updateTaskStatus(activeTask.id, 'todo');
+        await fetchMyTasks();
+        setActiveTask(null);
+    }
     
     if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
         videoRef.current.srcObject = null;
-        setHasCameraPermission(null);
     }
+    setHasCameraPermission(null);
   };
 
   const handleSuggestProject = async () => {
@@ -230,9 +245,11 @@ export function WorkTracker() {
     }
   };
 
-  useEffect(() => {
-    setProjects(getProjects());
-  }, []);
+  const getProjectName = async (projectId: string) => {
+    const project = await getProjectById(projectId);
+    return project?.name || 'Unknown';
+  };
+
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 p-4 md:p-6">
@@ -289,10 +306,12 @@ export function WorkTracker() {
                         </TableHeader>
                         <TableBody>
                             {myTasks.length > 0 ? (
-                                myTasks.map((task) => (
+                                myTasks.map((task) => {
+                                    const project = projects.find(p => p.id === task.projectId);
+                                    return (
                                     <TableRow key={task.id}>
                                         <TableCell className="font-medium max-w-xs truncate">{task.description}</TableCell>
-                                        <TableCell>{getProjectById(task.projectId)?.name}</TableCell>
+                                        <TableCell>{project?.name || 'Loading...'}</TableCell>
                                         <TableCell>{task.status}</TableCell>
                                         <TableCell className="text-right">
                                             <Button variant="ghost" size="icon" onClick={() => handleStart(task)} disabled={isRunning}>
@@ -300,7 +319,8 @@ export function WorkTracker() {
                                             </Button>
                                         </TableCell>
                                     </TableRow>
-                                ))
+                                    )
+                                })
                             ) : (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">

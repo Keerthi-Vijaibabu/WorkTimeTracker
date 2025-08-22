@@ -1,5 +1,7 @@
 
 import { type VerifyWorkingOutput } from "@/ai/flows/verify-working-flow";
+import { db } from './firebase';
+import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, Timestamp, orderBy, onSnapshot } from 'firebase/firestore';
 
 // Data types
 export type Session = {
@@ -8,15 +10,21 @@ export type Session = {
   duration: number;
 };
 
-export type UserSession = Session & {
+export type UserSession = {
+    id?: string;
+    startTime: Timestamp; 
+    stopTime: Timestamp; 
+    duration: number;
     userEmail: string | null;
     project: string;
 }
 
 export type VerificationLogEntry = { 
+    id?: string;
     photoDataUri: string;
     result: VerifyWorkingOutput;
-    timestamp: Date;
+    timestamp: Timestamp;
+    userEmail: string;
 };
 
 export type Project = {
@@ -39,65 +47,85 @@ export type User = {
     name: string;
 }
 
-// In-memory data stores
-let projects: Project[] = [
-    { id: "1", name: "Website Redesign", client: "Innovate Inc." },
-    { id: "2", name: "Mobile App Dev", client: "TechCorp" },
-    { id: "3", name: "API Integration", client: "Innovate Inc." },
-    { id: "4", name: "Marketing Campaign", client: "Growth Co." },
-];
-let tasks: Task[] = [
-    { id: '1', projectId: '1', assignedTo: 'keerthi.vijaibabu@gmail.com', description: 'Design homepage mockup', status: 'todo' },
-    { id: '2', projectId: '2', assignedTo: 'keerthi.vijaibabu@gmail.com', description: 'Implement push notifications', status: 'todo' },
-    { id: '3', projectId: '1', assignedTo: 'bob@example.com', description: 'Update color scheme', status: 'todo' },
-];
-let allUserSessions: UserSession[] = [];
-let verificationLog: VerificationLogEntry[] = [];
+// In-memory data for users, can be moved to Firestore if needed
 let users: User[] = [
     { id: '1', name: 'Alice', email: 'alice@example.com' },
     { id: '2', name: 'Bob', email: 'bob@example.com' },
     { id: '3', name: 'keerthi.vijaibabu@gmail.com', email: 'keerthi.vijaibabu@gmail.com' },
-]
-
-// Functions to interact with data stores
-
-// Projects
-export const getProjects = () => projects;
-export const getProjectById = (id: string) => projects.find(p => p.id === id);
-export const addProject = (project: Omit<Project, 'id'>) => {
-    const newProject = { ...project, id: String(projects.length + 1) };
-    projects.push(newProject);
-    return newProject;
-};
-
-// Tasks
-export const getTasks = () => tasks;
-export const addTask = (task: Omit<Task, 'id'>) => {
-    const newTask = { ...task, id: String(tasks.length + 1) };
-    tasks.push(newTask);
-    return newTask;
-};
-export const updateTaskStatus = (taskId: string, status: Task['status']) => {
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
-    if (taskIndex > -1) {
-        tasks[taskIndex].status = status;
-        return tasks[taskIndex];
-    }
-    return null;
-}
-
-// Users
+];
 export const getUsers = () => users;
 
 
+// --- Firestore Functions ---
+
+// Projects
+export const getProjects = async (): Promise<Project[]> => {
+    const projectsCol = collection(db, 'projects');
+    const projectSnapshot = await getDocs(projectsCol);
+    const projectList = projectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
+    return projectList;
+};
+export const getProjectById = async (id: string): Promise<Project | null> => {
+    const projects = await getProjects();
+    return projects.find(p => p.id === id) || null;
+}
+
+export const addProject = async (project: Omit<Project, 'id'>) => {
+    const docRef = await addDoc(collection(db, "projects"), project);
+    return { id: docRef.id, ...project };
+};
+
+// Tasks
+export const getTasks = async (): Promise<Task[]> => {
+    const tasksCol = collection(db, 'tasks');
+    const taskSnapshot = await getDocs(tasksCol);
+    return taskSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+};
+
+export const addTask = async (task: Omit<Task, 'id'>) => {
+    const docRef = await addDoc(collection(db, "tasks"), task);
+    return { id: docRef.id, ...task };
+};
+
+export const updateTaskStatus = async (taskId: string, status: Task['status']) => {
+    const taskRef = doc(db, "tasks", taskId);
+    await updateDoc(taskRef, { status });
+    const tasks = await getTasks();
+    return tasks.find(t => t.id === taskId) || null;
+}
+
 // User Sessions
-export const getUserSessions = () => allUserSessions;
-export const addUserSession = (session: UserSession) => {
-    allUserSessions.unshift(session);
+export const getUserSessions = (callback: (sessions: UserSession[]) => void) => {
+    const sessionsCol = collection(db, 'userSessions');
+    const q = query(sessionsCol, orderBy('stopTime', 'desc'));
+
+    return onSnapshot(q, (querySnapshot) => {
+        const sessions: UserSession[] = [];
+        querySnapshot.forEach((doc) => {
+            sessions.push({ id: doc.id, ...doc.data() } as UserSession);
+        });
+        callback(sessions);
+    });
+};
+
+export const addUserSession = async (session: Omit<UserSession, 'id'>) => {
+    await addDoc(collection(db, "userSessions"), session);
 };
 
 // Verification Log
-export const getVerificationLog = () => verificationLog;
-export const addVerificationLog = (log: VerificationLogEntry) => {
-    verificationLog.unshift(log);
+export const getVerificationLog = (callback: (logs: VerificationLogEntry[]) => void) => {
+    const logCol = collection(db, 'verificationLog');
+    const q = query(logCol, orderBy('timestamp', 'desc'));
+    
+    return onSnapshot(q, (querySnapshot) => {
+        const logs: VerificationLogEntry[] = [];
+        querySnapshot.forEach((doc) => {
+            logs.push({ id: doc.id, ...doc.data() } as VerificationLogEntry);
+        });
+        callback(logs);
+    });
+};
+
+export const addVerificationLog = async (log: Omit<VerificationLogEntry, 'id'>) => {
+    await addDoc(collection(db, "verificationLog"), log);
 }

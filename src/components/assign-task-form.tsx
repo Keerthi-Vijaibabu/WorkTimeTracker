@@ -26,7 +26,7 @@ export function AssignTaskForm({ projects, onTaskAssigned }: AssignTaskFormProps
     const users = getUsers();
     const { toast } = useToast();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedProject || !selectedUser || !description.trim()) {
             toast({
@@ -39,7 +39,7 @@ export function AssignTaskForm({ projects, onTaskAssigned }: AssignTaskFormProps
 
         setIsLoading(true);
         try {
-            const newTask = addTask({
+            const newTask = await addTask({
                 projectId: selectedProject,
                 assignedTo: selectedUser,
                 description,

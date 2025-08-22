@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getUserSessions, type UserSession, getProjects } from '@/lib/data';
+import { getUserSessions, type UserSession, getProjects, type Project, getUsers, type User } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,24 +11,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 export function UserSessionsLog() {
   const [sessions, setSessions] = useState<UserSession[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [selectedProject, setSelectedProject] = useState<string>('all');
 
-  const refreshSessions = useCallback(() => {
-    setSessions([...getUserSessions()]);
-  }, []);
 
   useEffect(() => {
     setIsClient(true);
-    refreshSessions();
-    const interval = setInterval(refreshSessions, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
-  }, [refreshSessions]);
+    const unsubscribe = getUserSessions(setSessions);
+    
+    const fetchInitialData = async () => {
+        setProjects(await getProjects());
+        setUsers(getUsers());
+    }
+    fetchInitialData();
 
-  const handleRefresh = () => {
-    refreshSessions();
-  }
+    return () => unsubscribe();
+  }, []);
 
   const formatTime = useCallback((time: number) => {
     const totalSeconds = Math.floor(time / 1000);
@@ -38,9 +39,9 @@ export function UserSessionsLog() {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }, []);
 
-  const { users, projects, filteredSessions } = useMemo(() => {
-    const users = ['all', ...Array.from(new Set(sessions.map(s => s.userEmail).filter(Boolean))) as string[]];
-    const projects = ['all', ...Array.from(new Set(getProjects().map(p => p.name)))];
+  const { projectNames, userEmails, filteredSessions } = useMemo(() => {
+    const userEmails = ['all', ...Array.from(new Set(users.map(u => u.email)))];
+    const projectNames = ['all', ...Array.from(new Set(projects.map(p => p.name)))];
 
     const filteredSessions = sessions.filter(session => {
       const userMatch = selectedUser === 'all' || session.userEmail === selectedUser;
@@ -48,8 +49,8 @@ export function UserSessionsLog() {
       return userMatch && projectMatch;
     });
 
-    return { users, projects, filteredSessions };
-  }, [sessions, selectedUser, selectedProject]);
+    return { userEmails, projectNames, filteredSessions };
+  }, [sessions, selectedUser, selectedProject, projects, users]);
 
 
   return (
@@ -66,7 +67,7 @@ export function UserSessionsLog() {
                     <SelectValue placeholder="Filter by user" />
                 </SelectTrigger>
                 <SelectContent>
-                    {users.map(user => (
+                    {userEmails.map(user => (
                         <SelectItem key={user} value={user}>{user === 'all' ? 'All Users' : user}</SelectItem>
                     ))}
                 </SelectContent>
@@ -76,12 +77,11 @@ export function UserSessionsLog() {
                     <SelectValue placeholder="Filter by project" />
                 </SelectTrigger>
                 <SelectContent>
-                    {projects.map(project => (
+                    {projectNames.map(project => (
                         <SelectItem key={project} value={project}>{project === 'all' ? 'All Projects' : project}</SelectItem>
                     ))}
                 </SelectContent>
             </Select>
-            <Button onClick={handleRefresh}>Refresh</Button>
           </div>
         </div>
       </CardHeader>
@@ -100,13 +100,13 @@ export function UserSessionsLog() {
             </TableHeader>
             <TableBody>
               {filteredSessions.length > 0 ? (
-                filteredSessions.map((session, index) => (
-                  <TableRow key={index}>
+                filteredSessions.map((session) => (
+                  <TableRow key={session.id}>
                     <TableCell className="font-medium">{session.userEmail}</TableCell>
                     <TableCell>{session.project}</TableCell>
-                    <TableCell>{isClient ? session.startTime.toLocaleDateString() : ''}</TableCell>
-                    <TableCell>{isClient ? session.startTime.toLocaleTimeString() : ''}</TableCell>
-                    <TableCell>{isClient ? session.stopTime.toLocaleTimeString() : ''}</TableCell>
+                    <TableCell>{isClient ? session.startTime.toDate().toLocaleDateString() : ''}</TableCell>
+                    <TableCell>{isClient ? session.startTime.toDate().toLocaleTimeString() : ''}</TableCell>
+                    <TableCell>{isClient ? session.stopTime.toDate().toLocaleTimeString() : ''}</TableCell>
                     <TableCell className="text-right">{isClient ? formatTime(session.duration) : ''}</TableCell>
                   </TableRow>
                 ))

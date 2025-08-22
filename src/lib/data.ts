@@ -161,7 +161,6 @@ export const addUserSession = async (uid: string, session: Omit<UserSession, 'id
 
 // Verification Log
 export const getVerificationLog = (callback: (logs: VerificationLogEntry[]) => void) => {
-    // Admin view: get all verification logs from all users
     const logCol = collectionGroup(db, 'verificationLog');
     const q = query(logCol, orderBy('timestamp', 'desc'));
     

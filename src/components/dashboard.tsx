@@ -8,9 +8,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 
 export function Dashboard() {
     const { setTheme, theme } = useTheme();
+    const { user } = useAuth();
+
+    const isAdmin = user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 
     return (
         <div className="relative">
@@ -22,9 +26,9 @@ export function Dashboard() {
                 </Button>
             </div>
             <Tabs defaultValue="tracker" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
                     <TabsTrigger value="tracker">Work Tracker</TabsTrigger>
-                    <TabsTrigger value="admin">Admin View</TabsTrigger>
+                    {isAdmin && <TabsTrigger value="admin">Admin View</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="tracker">
                     <Card>
@@ -33,13 +37,15 @@ export function Dashboard() {
                         </CardContent>
                     </Card>
                 </TabsContent>
-                <TabsContent value="admin">
-                     <Card>
-                        <CardContent className="pt-6">
-                            <AdminDashboard />
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                {isAdmin && (
+                    <TabsContent value="admin">
+                        <Card>
+                            <CardContent className="pt-6">
+                                <AdminDashboard />
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                )}
             </Tabs>
         </div>
     )

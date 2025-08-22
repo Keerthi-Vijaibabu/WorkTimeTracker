@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import Image from 'next/image';
 import { suggestProject, type SuggestProjectOutput } from '@/ai/flows/suggest-project-flow';
 import { verifyWorking, type VerifyWorkingOutput } from '@/ai/flows/verify-working-flow';
 import { Button } from "@/components/ui/button";
@@ -11,17 +10,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Square, BrainCircuit, Camera, Loader2, CheckCircle, XCircle } from 'lucide-react';
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
+import { Play, Square, BrainCircuit, Loader2 } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type Session = {
   startTime: Date;
   stopTime: Date;
   duration: number;
 };
+
+// This is a mock storage. In a real app, you'd use a database.
+const verificationLog: { photoDataUri: string, result: VerifyWorkingOutput, timestamp: Date }[] = [];
+export const getVerificationLog = () => verificationLog;
 
 export function WorkTracker() {
   const [isRunning, setIsRunning] = useState(false);
@@ -32,10 +33,10 @@ export function WorkTracker() {
   const [taskDescription, setTaskDescription] = useState('');
   const [suggestion, setSuggestion] = useState<SuggestProjectOutput | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
-
-  const [verificationResult, setVerificationResult] = useState<VerifyWorkingOutput | null>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [verificationPhoto, setVerificationPhoto] = useState<string | null>(null);
+  
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const verificationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
@@ -52,19 +53,73 @@ export function WorkTracker() {
     const seconds = totalSeconds % 60;
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }, []);
+  
+  useEffect(() => {
+    const getCameraPermission = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({video: true});
+        setHasCameraPermission(true);
 
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings for automatic work verification.',
+        });
+      }
+    };
+
+    getCameraPermission();
+  }, [toast]);
+
+  const handleVerifyWorking = useCallback(async () => {
+    if (!videoRef.current || !hasCameraPermission) return;
+
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const photoDataUri = canvas.toDataURL('image/jpeg');
+      
+      try {
+        const previousTasks = sessions.map(s => `Worked for ${formatTime(s.duration)} on ${s.startTime.toLocaleDateString()}`);
+        const result = await verifyWorking({ photoDataUri, previousTasks: previousTasks.slice(0, 3) });
+        verificationLog.unshift({ photoDataUri, result, timestamp: new Date() });
+        console.log("Work verification successful", result);
+      } catch (error) {
+        console.error("Automatic verification failed", error);
+        // We don't show a toast here to keep it hidden from the user
+      }
+    }
+  }, [hasCameraPermission, sessions, formatTime]);
+  
   useEffect(() => {
     if (isRunning) {
       timerRef.current = setInterval(() => {
         setElapsedTime(Date.now() - (startTime?.getTime() ?? 0));
       }, 1000);
+      
+      // Start automatic verification, run once then every 1 minute
+      handleVerifyWorking(); 
+      verificationIntervalRef.current = setInterval(handleVerifyWorking, 60000); 
+
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (verificationIntervalRef.current) clearInterval(verificationIntervalRef.current);
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (verificationIntervalRef.current) clearInterval(verificationIntervalRef.current);
     };
-  }, [isRunning, startTime]);
+  }, [isRunning, startTime, handleVerifyWorking]);
 
   const handleStart = () => {
     const now = new Date();
@@ -106,32 +161,6 @@ export function WorkTracker() {
     }
   };
 
-  const handleVerifyWorking = async () => {
-    setIsVerifying(true);
-    setVerificationResult(null);
-    setVerificationPhoto(null);
-    try {
-      const photoUrl = 'https://placehold.co/640x480.png';
-      setVerificationPhoto(photoUrl);
-      const response = await fetch(photoUrl);
-      const blob = await response.blob();
-      const reader = new FileReader();
-      reader.readAsDataURL(blob);
-      reader.onloadend = async () => {
-        const base64data = reader.result as string;
-        const previousTasks = sessions.map(s => `Worked for ${formatTime(s.duration)} on ${s.startTime.toLocaleDateString()}`);
-        const result = await verifyWorking({ photoDataUri: base64data, previousTasks: previousTasks.slice(0, 3) });
-        setVerificationResult(result);
-        setIsVerifying(false);
-      };
-      reader.onerror = () => { throw new Error("Could not read image file."); };
-    } catch (error) {
-      console.error(error);
-      toast({ variant: "destructive", title: "AI Verification Failed", description: "Could not verify your status. Please try again." });
-      setIsVerifying(false);
-    }
-  };
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
       <div className="lg:col-span-3 flex flex-col gap-8">
@@ -141,7 +170,7 @@ export function WorkTracker() {
             <CardDescription>Start and stop your work sessions here.</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <p className="text-6xl font-bold tabular-nums tracking-tighter" style={{color: 'hsl(var(--primary))'}}>{formatTime(elapsedTime)}</p>
+            <p className="text-6xl font-bold tabular-nums tracking-tighter" style={{color: 'hsl(var(--primary))'}}>{isClient ? formatTime(elapsedTime) : '00:00:00'}</p>
           </CardContent>
           <CardFooter className="flex justify-center gap-4">
             {!isRunning ? (
@@ -155,6 +184,18 @@ export function WorkTracker() {
             )}
           </CardFooter>
         </Card>
+        
+        <video ref={videoRef} className="w-0 h-0" autoPlay muted playsInline />
+
+        {hasCameraPermission === false && (
+            <Alert variant="destructive">
+                <AlertTitle>Camera Access Required</AlertTitle>
+                <AlertDescription>
+                Automatic work verification is disabled. Please allow camera access to use this feature.
+                </AlertDescription>
+            </Alert>
+        )}
+
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Session History</CardTitle>
@@ -178,7 +219,7 @@ export function WorkTracker() {
                         <TableCell>{isClient ? session.startTime.toLocaleDateString() : ''}</TableCell>
                         <TableCell>{isClient ? session.startTime.toLocaleTimeString() : ''}</TableCell>
                         <TableCell>{isClient ? session.stopTime.toLocaleTimeString() : ''}</TableCell>
-                        <TableCell className="text-right">{formatTime(session.duration)}</TableCell>
+                        <TableCell className="text-right">{isClient ? formatTime(session.duration) : ''}</TableCell>
                       </TableRow>
                     ))
                   ) : (
@@ -200,76 +241,32 @@ export function WorkTracker() {
             <CardDescription>Get smart suggestions and insights.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="suggestion">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="suggestion">Project Suggestion</TabsTrigger>
-                <TabsTrigger value="verification">Work Verification</TabsTrigger>
-              </TabsList>
-              <TabsContent value="suggestion" className="mt-4">
-                <div className="space-y-4">
-                  <Textarea
-                    placeholder="Describe your current task... e.g., 'fixing bugs on the checkout page'"
-                    value={taskDescription}
-                    onChange={(e) => setTaskDescription(e.target.value)}
-                    rows={3}
-                  />
-                  <Button onClick={handleSuggestProject} disabled={isSuggesting} className="w-full">
-                    {isSuggesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
-                    Suggest Project
-                  </Button>
-                  {isSuggesting && <Skeleton className="h-24 w-full" />}
-                  {suggestion && (
-                    <Card className="bg-muted/50">
-                      <CardHeader>
-                        <CardTitle className="text-lg">Suggested Project: {suggestion.suggestedProjectName}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-muted-foreground">{suggestion.reason}</p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              </TabsContent>
-              <TabsContent value="verification" className="mt-4">
-                <div className="space-y-4">
-                   <p className="text-sm text-center text-muted-foreground">Randomly check if you are still on task.</p>
-                  <Button onClick={handleVerifyWorking} disabled={isVerifying} className="w-full">
-                    {isVerifying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}
-                    Verify I'm Working
-                  </Button>
-                  {(isVerifying || verificationPhoto) && (
-                    <div className="relative aspect-video w-full overflow-hidden rounded-lg border">
-                      {isVerifying && !verificationPhoto && <Skeleton className="h-full w-full" />}
-                       {verificationPhoto && <Image src={verificationPhoto} alt="Verification photo" layout="fill" objectFit="cover" data-ai-hint="person working" />}
-                    </div>
-                  )}
-                  {isVerifying && !verificationResult && <Skeleton className="h-28 w-full" />}
-                  {verificationResult && (
-                    <Card className="bg-muted/50">
-                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-lg">Verification Result</CardTitle>
-                         <Badge variant={verificationResult.isWorking ? "default" : "destructive"} className={cn(verificationResult.isWorking ? "bg-green-500" : "bg-red-500", "text-white")}>
-                          {verificationResult.isWorking ? <CheckCircle className="mr-1 h-4 w-4" /> : <XCircle className="mr-1 h-4 w-4" />}
-                          {verificationResult.isWorking ? "Working" : "Not Working"}
-                        </Badge>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium">Confidence: {Math.round(verificationResult.confidence * 100)}%</p>
-                          <Progress value={verificationResult.confidence * 100} className="h-2" />
-                          <p className="text-sm text-muted-foreground pt-2">{verificationResult.details}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              </TabsContent>
-            </Tabs>
+             <div className="space-y-4">
+              <Textarea
+                placeholder="Describe your current task... e.g., 'fixing bugs on the checkout page'"
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                rows={3}
+              />
+              <Button onClick={handleSuggestProject} disabled={isSuggesting} className="w-full">
+                {isSuggesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
+                Suggest Project
+              </Button>
+              {isSuggesting && <Skeleton className="h-24 w-full" />}
+              {suggestion && (
+                <Card className="bg-muted/50">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Suggested Project: {suggestion.suggestedProjectName}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">{suggestion.reason}</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
-
-    

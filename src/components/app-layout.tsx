@@ -35,8 +35,7 @@ import { ChangePasswordDialog } from "./change-password-dialog";
 
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  const isAdmin = user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const { user, isAdmin } = useAuth();
 
   return (
     <SidebarProvider>

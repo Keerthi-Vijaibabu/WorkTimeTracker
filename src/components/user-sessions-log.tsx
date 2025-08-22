@@ -24,7 +24,7 @@ export function UserSessionsLog() {
     
     const fetchInitialData = async () => {
         setProjects(await getProjects());
-        setUsers(getUsers());
+        setUsers(await getUsers());
     }
     fetchInitialData();
 

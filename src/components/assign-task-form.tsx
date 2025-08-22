@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { addTask, getUsers, type Project, type Task } from '@/lib/data';
+import { addTask, getUsers, type Project, type Task, type User } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
@@ -22,9 +22,16 @@ export function AssignTaskForm({ projects, onTaskAssigned }: AssignTaskFormProps
     const [selectedUser, setSelectedUser] = useState('');
     const [description, setDescription] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [users, setUsers] = useState<User[]>([]);
     
-    const users = getUsers();
     const { toast } = useToast();
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            setUsers(await getUsers());
+        }
+        fetchUsers();
+    }, [])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

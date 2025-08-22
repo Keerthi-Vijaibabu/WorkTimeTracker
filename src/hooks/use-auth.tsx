@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import {
   User,
   onAuthStateChanged,
@@ -14,10 +14,12 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter, usePathname } from 'next/navigation';
+import { isAdmin, seedUsers } from "@/lib/data";
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
+  isAdmin: boolean;
   login: (email: string, pass: string) => Promise<any>;
   signup: (email: string, pass: string) => Promise<any>;
   logout: () => Promise<any>;
@@ -27,6 +29,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  isAdmin: false,
   login: async () => {},
   signup: async () => {},
   logout: async () => {},
@@ -36,16 +39,31 @@ const AuthContext = createContext<AuthContextType>({
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdminUser, setIsAdminUser] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  
+  useEffect(() => {
+    seedUsers();
+  }, [])
+
+  const checkAdminStatus = useCallback(async (user: User | null) => {
+    if (user?.email) {
+      const adminStatus = await isAdmin(user.email);
+      setIsAdminUser(adminStatus);
+    } else {
+      setIsAdminUser(false);
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
+      checkAdminStatus(user);
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [checkAdminStatus]);
 
   useEffect(() => {
     if (loading) return;
@@ -59,8 +77,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, loading, router, pathname]);
 
-  const login = (email: string, pass: string) => {
-    return signInWithEmailAndPassword(auth, email, pass);
+  const login = async (email: string, pass: string) => {
+    const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+    checkAdminStatus(userCredential.user);
+    return userCredential;
   };
 
   const signup = (email: string, pass: string) => {
@@ -68,6 +88,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = () => {
+    setIsAdminUser(false);
     return signOut(auth);
   };
   
@@ -83,6 +104,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const value = {
     user,
     loading,
+    isAdmin: isAdminUser,
     login,
     signup,
     logout,

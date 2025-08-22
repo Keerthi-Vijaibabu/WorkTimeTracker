@@ -5,10 +5,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { AdminDashboard } from "@/components/admin-dashboard";
 
 export default function AdminPage() {
-  const { user } = useAuth();
+  const { isAdmin } = useAuth();
 
-  // Basic role check
-  if (user?.email !== process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
+  if (!isAdmin) {
     return (
         <main className="flex items-center justify-center min-h-screen">
             <div className="text-center">

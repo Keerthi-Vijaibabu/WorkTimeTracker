@@ -1,7 +1,7 @@
 
 import { type VerifyWorkingOutput } from "@/ai/flows/verify-working-flow";
 import { db } from './firebase';
-import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, Timestamp, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, Timestamp, orderBy, onSnapshot, getDoc } from 'firebase/firestore';
 
 // Data types
 export type Session = {
@@ -45,15 +45,46 @@ export type User = {
     id: string;
     email: string;
     name: string;
+    role: 'admin' | 'worker';
 }
 
-// In-memory data for users, can be moved to Firestore if needed
+// In-memory data for users, will be seeded into firestore
 let users: User[] = [
-    { id: '1', name: 'Alice', email: 'alice@example.com' },
-    { id: '2', name: 'Bob', email: 'bob@example.com' },
-    { id: '3', name: 'keerthi.vijaibabu@gmail.com', email: 'keerthi.vijaibabu@gmail.com' },
+    { id: '1', name: 'Alice', email: 'alice@example.com', role: 'admin' },
+    { id: '2', name: 'Bob', email: 'bob@example.com', role: 'worker' },
+    { id: '3', name: 'keerthi.vijaibabu@gmail.com', email: 'keerthi.vijaibabu@gmail.com', role: 'worker' },
 ];
-export const getUsers = () => users;
+
+export const seedUsers = async () => {
+    const usersCol = collection(db, 'users');
+    const snapshot = await getDocs(usersCol);
+    if (snapshot.empty) {
+        console.log('Seeding users...');
+        for (const user of users) {
+            const userRef = doc(db, 'users', user.email);
+            await addDoc(usersCol, user);
+        }
+    }
+};
+
+
+export const getUsers = async (): Promise<User[]> => {
+    const usersCol = collection(db, 'users');
+    const userSnapshot = await getDocs(usersCol);
+    return userSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+};
+
+export const isAdmin = async (email: string): Promise<boolean> => {
+    if (!email) return false;
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", email));
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) {
+        return false;
+    }
+    const user = querySnapshot.docs[0].data() as User;
+    return user.role === 'admin';
+};
 
 
 // --- Firestore Functions ---

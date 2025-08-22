@@ -52,7 +52,7 @@ export type User = {
 let users: User[] = [
     { id: 'alice@example.com', name: 'Alice', email: 'alice@example.com', role: 'admin' },
     { id: 'bob@example.com', name: 'Bob', email: 'bob@example.com', role: 'worker' },
-    { id: 'keerthi.vijaibabu@gmail.com', name: 'Keerthi', email: 'keerthi.vijaibabu@gmail.com', role: 'worker' },
+    { id: 'keerthi.vijaibabu@gmail.com', name: 'Keerthi', email: 'keerthi.vijaibabu@gmail.com', role: 'admin' },
 ];
 
 export const seedUsers = async () => {

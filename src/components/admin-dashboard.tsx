@@ -15,6 +15,7 @@ import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserSessionsLog } from './user-sessions-log';
 import { ProjectManagement } from './project-management';
+import { UserManagement } from './user-management';
 import { useAuth } from '@/hooks/use-auth';
 
 
@@ -25,7 +26,7 @@ export function AdminDashboard() {
 
   useEffect(() => {
     setIsClient(true);
-    let unsubscribe: () => void;
+    let unsubscribe: (() => void) | undefined;
     if (user?.email) {
       unsubscribe = getVerificationLog(setLog);
     }
@@ -40,10 +41,11 @@ export function AdminDashboard() {
     <div className="p-4 md:p-6">
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
       <Tabs defaultValue="sessions">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="sessions">User Sessions</TabsTrigger>
           <TabsTrigger value="verification">Verification Log</TabsTrigger>
           <TabsTrigger value="projects">Project Management</TabsTrigger>
+          <TabsTrigger value="users">User Management</TabsTrigger>
         </TabsList>
         <TabsContent value="sessions">
             <UserSessionsLog />
@@ -116,6 +118,9 @@ export function AdminDashboard() {
         </TabsContent>
         <TabsContent value="projects">
           <ProjectManagement />
+        </TabsContent>
+        <TabsContent value="users">
+          <UserManagement />
         </TabsContent>
       </Tabs>
     </div>

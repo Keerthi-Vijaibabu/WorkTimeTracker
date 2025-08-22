@@ -57,9 +57,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
-      checkAdminStatus(user);
+      await checkAdminStatus(user);
       setLoading(false);
     });
     return () => unsubscribe();
@@ -79,12 +79,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (email: string, pass: string) => {
     const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-    checkAdminStatus(userCredential.user);
+    await checkAdminStatus(userCredential.user);
     return userCredential;
   };
 
-  const signup = (email: string, pass: string) => {
-    return createUserWithEmailAndPassword(auth, email, pass);
+  const signup = async (email: string, pass: string) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+    await isAdmin(userCredential.user.email!); // This will create the user doc with 'worker' role
+    return userCredential;
   };
 
   const logout = () => {

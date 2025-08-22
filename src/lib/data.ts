@@ -1,7 +1,7 @@
 
 import { type VerifyWorkingOutput } from "@/ai/flows/verify-working-flow";
 import { db } from './firebase';
-import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, Timestamp, orderBy, onSnapshot, getDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, Timestamp, orderBy, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
 
 // Data types
 export type Session = {
@@ -50,9 +50,9 @@ export type User = {
 
 // In-memory data for users, will be seeded into firestore
 let users: User[] = [
-    { id: '1', name: 'Alice', email: 'alice@example.com', role: 'admin' },
-    { id: '2', name: 'Bob', email: 'bob@example.com', role: 'worker' },
-    { id: '3', name: 'keerthi.vijaibabu@gmail.com', email: 'keerthi.vijaibabu@gmail.com', role: 'worker' },
+    { id: 'alice@example.com', name: 'Alice', email: 'alice@example.com', role: 'admin' },
+    { id: 'bob@example.com', name: 'Bob', email: 'bob@example.com', role: 'worker' },
+    { id: 'keerthi.vijaibabu@gmail.com', name: 'Keerthi', email: 'keerthi.vijaibabu@gmail.com', role: 'worker' },
 ];
 
 export const seedUsers = async () => {
@@ -62,7 +62,12 @@ export const seedUsers = async () => {
         console.log('Seeding users...');
         for (const user of users) {
             const userRef = doc(db, 'users', user.email);
-            await addDoc(usersCol, user);
+            // Use setDoc with the user's email as the document ID
+            await setDoc(userRef, {
+                email: user.email,
+                name: user.name,
+                role: user.role
+            });
         }
     }
 };
@@ -74,15 +79,34 @@ export const getUsers = async (): Promise<User[]> => {
     return userSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
 };
 
+export const updateUserRole = async (userId: string, role: 'admin' | 'worker') => {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, { role });
+};
+
+
 export const isAdmin = async (email: string): Promise<boolean> => {
     if (!email) return false;
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("email", "==", email));
-    const querySnapshot = await getDocs(q);
-    if (querySnapshot.empty) {
-        return false;
+    const userRef = doc(db, "users", email);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+        // If the user doc doesn't exist, they might be a newly signed up user.
+        // Let's create a record for them with a default 'worker' role.
+        try {
+            await setDoc(userRef, {
+                email: email,
+                name: email.split('@')[0], // Default name from email
+                role: 'worker'
+            });
+            return false; // They are a worker by default.
+        } catch (error) {
+            console.error("Error creating user document:", error);
+            return false;
+        }
     }
-    const user = querySnapshot.docs[0].data() as User;
+    
+    const user = userSnap.data() as Omit<User, 'id'>;
     return user.role === 'admin';
 };
 

@@ -39,6 +39,7 @@ export function WorkTracker() {
   const verificationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const [isClient, setIsClient] = useState(false);
+  
   useEffect(() => {
     setIsClient(true);
   }, []);
@@ -54,29 +55,29 @@ export function WorkTracker() {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }, []);
   
-  useEffect(() => {
-    const getCameraPermission = async () => {
-      if (typeof window === 'undefined') return;
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({video: true});
-        setHasCameraPermission(true);
+  const getCameraPermission = async () => {
+    if (typeof window === 'undefined') return false;
+    if (hasCameraPermission) return true;
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (error) {
-        console.error('Error accessing camera:', error);
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Camera Access Denied',
-          description: 'Please enable camera permissions in your browser settings for automatic work verification.',
-        });
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({video: true});
+      setHasCameraPermission(true);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
       }
-    };
-
-    getCameraPermission();
-  }, [toast]);
+      return true;
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      setHasCameraPermission(false);
+      toast({
+        variant: 'destructive',
+        title: 'Camera Access Denied',
+        description: 'Please enable camera permissions in your browser settings for automatic work verification.',
+      });
+      return false;
+    }
+  };
 
   const handleVerifyWorking = useCallback(async () => {
     if (!videoRef.current || !hasCameraPermission) return;
@@ -135,8 +136,15 @@ export function WorkTracker() {
     fetchMyTasks();
   }, [fetchMyTasks]);
 
-  const handleStart = (task: Task | null = null) => {
+  const handleStart = async (task: Task | null = null) => {
     let projectToStart = '';
+    
+    const cameraReady = await getCameraPermission();
+    if (!cameraReady) {
+        toast({ variant: 'destructive', title: 'Camera Required', description: 'Camera access is required to start tracking.' });
+        return;
+    }
+    
     if (task) {
         const project = getProjectById(task.projectId);
         if(project) {
@@ -187,6 +195,13 @@ export function WorkTracker() {
     }
     setIsRunning(false);
     setActiveTask(null);
+    
+    if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+        setHasCameraPermission(null);
+    }
   };
 
   const handleSuggestProject = async () => {

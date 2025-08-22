@@ -91,14 +91,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     changePassword,
   };
 
+  const isAuthPage = pathname === '/login' || pathname === '/signup';
+  
   if (loading) {
     return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
   }
   
-  const isAuthPage = pathname === '/login' || pathname === '/signup';
   if (!user && !isAuthPage) {
     router.push('/login');
-    // Show loading while redirecting
     return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
   }
   

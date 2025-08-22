@@ -420,5 +420,3 @@ export function WorkTracker() {
     </div>
   );
 }
-
-    

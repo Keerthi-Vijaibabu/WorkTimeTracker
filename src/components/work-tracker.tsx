@@ -14,6 +14,8 @@ import { Play, Square, BrainCircuit, Loader2 } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/hooks/use-auth';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 type Session = {
   startTime: Date;
@@ -23,6 +25,7 @@ type Session = {
 
 export type UserSession = Session & {
     userEmail: string | null;
+    project: string;
 }
 
 // This is a mock storage. In a real app, you'd use a database.
@@ -32,12 +35,20 @@ export const getVerificationLog = () => verificationLog;
 const allUserSessions: UserSession[] = [];
 export const getUserSessions = () => allUserSessions;
 
+const recentProjects = [
+    { name: "Website Redesign", date: "2024-07-20T10:00:00Z", client: "Innovate Inc." },
+    { name: "Mobile App Dev", date: "2024-07-19T15:30:00Z", client: "TechCorp" },
+    { name: "API Integration", date: "2024-07-18T11:00:00Z", client: "Innovate Inc." },
+    { name: "Marketing Campaign", date: "2024-07-17T09:00:00Z", client: "Growth Co." },
+];
+  
 export function WorkTracker() {
   const { user } = useAuth();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [currentProject, setCurrentProject] = useState('');
 
   const [taskDescription, setTaskDescription] = useState('');
   const [suggestion, setSuggestion] = useState<SuggestProjectOutput | null>(null);
@@ -65,6 +76,7 @@ export function WorkTracker() {
   
   useEffect(() => {
     const getCameraPermission = async () => {
+      if (typeof window === 'undefined') return;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({video: true});
         setHasCameraPermission(true);
@@ -112,9 +124,11 @@ export function WorkTracker() {
   
   useEffect(() => {
     if (isRunning) {
-      timerRef.current = setInterval(() => {
-        setElapsedTime(Date.now() - (startTime?.getTime() ?? 0));
-      }, 1000);
+      if (startTime) {
+        timerRef.current = setInterval(() => {
+          setElapsedTime(Date.now() - startTime.getTime());
+        }, 1000);
+      }
       
       // Start automatic verification, run once then every 1 minute
       handleVerifyWorking(); 
@@ -131,6 +145,14 @@ export function WorkTracker() {
   }, [isRunning, startTime, handleVerifyWorking]);
 
   const handleStart = () => {
+    if (!currentProject) {
+      toast({
+        variant: 'destructive',
+        title: 'Project not selected',
+        description: 'Please select a project before starting the timer.',
+      });
+      return;
+    }
     const now = new Date();
     setStartTime(now);
     setIsRunning(true);
@@ -150,18 +172,12 @@ export function WorkTracker() {
       const userSession: UserSession = {
         ...newSession,
         userEmail: user?.email || 'Anonymous',
+        project: currentProject,
       }
       allUserSessions.unshift(userSession);
     }
     setIsRunning(false);
   };
-
-  const recentProjects = [
-    { name: "Website Redesign", date: "2024-07-20T10:00:00Z", client: "Innovate Inc." },
-    { name: "Mobile App Dev", date: "2024-07-19T15:30:00Z", client: "TechCorp" },
-    { name: "API Integration", date: "2024-07-18T11:00:00Z", client: "Innovate Inc." },
-    { name: "Marketing Campaign", date: "2024-07-17T09:00:00Z", client: "Growth Co." },
-  ];
 
   const handleSuggestProject = async () => {
     if (!taskDescription.trim()) {
@@ -173,6 +189,9 @@ export function WorkTracker() {
     try {
       const result = await suggestProject({ currentTaskDescription: taskDescription, recentProjects });
       setSuggestion(result);
+      if (result.suggestedProjectName) {
+        setCurrentProject(result.suggestedProjectName);
+      }
     } catch (error) {
       console.error(error);
       toast({ variant: "destructive", title: "AI Suggestion Failed", description: "Could not get project suggestion. Please try again." });
@@ -187,9 +206,22 @@ export function WorkTracker() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Time Tracker</CardTitle>
-            <CardDescription>Start and stop your work sessions here.</CardDescription>
+            <CardDescription>Select a project, then start your work session.</CardDescription>
           </CardHeader>
-          <CardContent className="text-center">
+          <CardContent className="flex flex-col items-center gap-4">
+            <div className="w-full max-w-sm">
+                <Label htmlFor="project-select">Project</Label>
+                <Select value={currentProject} onValueChange={setCurrentProject} disabled={isRunning}>
+                    <SelectTrigger id="project-select">
+                        <SelectValue placeholder="Select a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {recentProjects.map(p => (
+                            <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
             <p className="text-6xl font-bold tabular-nums tracking-tighter" style={{color: 'hsl(var(--primary))'}}>{isClient ? formatTime(elapsedTime) : '00:00:00'}</p>
           </CardContent>
           <CardFooter className="flex justify-center gap-4">
@@ -207,7 +239,7 @@ export function WorkTracker() {
         
         <video ref={videoRef} className="w-0 h-0" autoPlay muted playsInline />
 
-        {hasCameraPermission === false && (
+        {isClient && hasCameraPermission === false && (
             <Alert variant="destructive">
                 <AlertTitle>Camera Access Required</AlertTitle>
                 <AlertDescription>
@@ -258,7 +290,7 @@ export function WorkTracker() {
         <Card className="shadow-lg min-h-full">
           <CardHeader>
             <CardTitle>AI Assistant</CardTitle>
-            <CardDescription>Get smart suggestions and insights.</CardDescription>
+            <CardDescription>Get a project suggestion for your task.</CardDescription>
           </CardHeader>
           <CardContent>
              <div className="space-y-4">
@@ -267,8 +299,9 @@ export function WorkTracker() {
                 value={taskDescription}
                 onChange={(e) => setTaskDescription(e.target.value)}
                 rows={3}
+                disabled={isRunning}
               />
-              <Button onClick={handleSuggestProject} disabled={isSuggesting} className="w-full">
+              <Button onClick={handleSuggestProject} disabled={isSuggesting || isRunning} className="w-full">
                 {isSuggesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
                 Suggest Project
               </Button>
@@ -290,4 +323,3 @@ export function WorkTracker() {
     </div>
   );
 }
-

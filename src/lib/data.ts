@@ -46,7 +46,11 @@ let projects: Project[] = [
     { id: "3", name: "API Integration", client: "Innovate Inc." },
     { id: "4", name: "Marketing Campaign", client: "Growth Co." },
 ];
-let tasks: Task[] = [];
+let tasks: Task[] = [
+    { id: '1', projectId: '1', assignedTo: 'keerthi.vijaibabu@gmail.com', description: 'Design homepage mockup', status: 'todo' },
+    { id: '2', projectId: '2', assignedTo: 'keerthi.vijaibabu@gmail.com', description: 'Implement push notifications', status: 'todo' },
+    { id: '3', projectId: '1', assignedTo: 'bob@example.com', description: 'Update color scheme', status: 'todo' },
+];
 let allUserSessions: UserSession[] = [];
 let verificationLog: VerificationLogEntry[] = [];
 let users: User[] = [
@@ -59,6 +63,7 @@ let users: User[] = [
 
 // Projects
 export const getProjects = () => projects;
+export const getProjectById = (id: string) => projects.find(p => p.id === id);
 export const addProject = (project: Omit<Project, 'id'>) => {
     const newProject = { ...project, id: String(projects.length + 1) };
     projects.push(newProject);
@@ -72,6 +77,14 @@ export const addTask = (task: Omit<Task, 'id'>) => {
     tasks.push(newTask);
     return newTask;
 };
+export const updateTaskStatus = (taskId: string, status: Task['status']) => {
+    const taskIndex = tasks.findIndex(t => t.id === taskId);
+    if (taskIndex > -1) {
+        tasks[taskIndex].status = status;
+        return tasks[taskIndex];
+    }
+    return null;
+}
 
 // Users
 export const getUsers = () => users;

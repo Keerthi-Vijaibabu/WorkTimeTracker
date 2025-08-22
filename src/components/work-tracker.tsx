@@ -10,14 +10,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Square, BrainCircuit, Loader2 } from 'lucide-react';
+import { Play, Square, BrainCircuit, Loader2, PlayCircle } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/hooks/use-auth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import type { Session, UserSession } from '@/lib/data';
-import { addUserSession, addVerificationLog, getProjects } from '@/lib/data';
+import type { Session, UserSession, Task } from '@/lib/data';
+import { addUserSession, addVerificationLog, getProjects, getTasks, updateTaskStatus, getProjectById } from '@/lib/data';
 
 export function WorkTracker() {
   const { user } = useAuth();
@@ -27,6 +27,8 @@ export function WorkTracker() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentProject, setCurrentProject] = useState('');
   const [projects, setProjects] = useState(getProjects());
+  const [myTasks, setMyTasks] = useState<Task[]>([]);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   const [taskDescription, setTaskDescription] = useState('');
   const [suggestion, setSuggestion] = useState<SuggestProjectOutput | null>(null);
@@ -108,7 +110,6 @@ export function WorkTracker() {
         }, 1000);
       }
       
-      // Start automatic verification, run once then every 1 minute
       handleVerifyWorking(); 
       verificationIntervalRef.current = setInterval(handleVerifyWorking, 60000); 
 
@@ -121,13 +122,43 @@ export function WorkTracker() {
       if (verificationIntervalRef.current) clearInterval(verificationIntervalRef.current);
     };
   }, [isRunning, startTime, handleVerifyWorking]);
+  
+  const fetchMyTasks = useCallback(() => {
+    if (user?.email) {
+        const allTasks = getTasks();
+        const userTasks = allTasks.filter(task => task.assignedTo === user.email && task.status !== 'done');
+        setMyTasks(userTasks);
+    }
+  }, [user?.email]);
 
-  const handleStart = () => {
-    if (!currentProject) {
+  useEffect(() => {
+    fetchMyTasks();
+  }, [fetchMyTasks]);
+
+  const handleStart = (task: Task | null = null) => {
+    let projectToStart = '';
+    if (task) {
+        const project = getProjectById(task.projectId);
+        if(project) {
+            projectToStart = project.name;
+            setCurrentProject(project.name);
+            setTaskDescription(task.description);
+            setActiveTask(task);
+            updateTaskStatus(task.id, 'inprogress');
+            fetchMyTasks();
+        } else {
+             toast({ variant: 'destructive', title: 'Error', description: 'Project for this task not found.' });
+             return;
+        }
+    } else {
+        projectToStart = currentProject;
+    }
+
+    if (!projectToStart) {
       toast({
         variant: 'destructive',
         title: 'Project not selected',
-        description: 'Please select a project before starting the timer.',
+        description: 'Please select a project or start from a task.',
       });
       return;
     }
@@ -155,6 +186,7 @@ export function WorkTracker() {
       addUserSession(userSession);
     }
     setIsRunning(false);
+    setActiveTask(null);
   };
 
   const handleSuggestProject = async () => {
@@ -193,7 +225,7 @@ export function WorkTracker() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Time Tracker</CardTitle>
-            <CardDescription>Select a project, then start your work session.</CardDescription>
+            <CardDescription>{activeTask ? `Working on: "${activeTask.description}"` : "Select a project, then start your work session."}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
             <div className="w-full max-w-sm">
@@ -213,7 +245,7 @@ export function WorkTracker() {
           </CardContent>
           <CardFooter className="flex justify-center gap-4">
             {!isRunning ? (
-              <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 w-32" onClick={handleStart}>
+              <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 w-32" onClick={() => handleStart()}>
                 <Play className="mr-2 h-5 w-5" /> Start
               </Button>
             ) : (
@@ -222,6 +254,49 @@ export function WorkTracker() {
               </Button>
             )}
           </CardFooter>
+        </Card>
+
+        <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle>My Assigned Tasks</CardTitle>
+                <CardDescription>Click the play button on a task to start tracking time for it.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ScrollArea className="h-48">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Task</TableHead>
+                                <TableHead>Project</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {myTasks.length > 0 ? (
+                                myTasks.map((task) => (
+                                    <TableRow key={task.id}>
+                                        <TableCell className="font-medium max-w-xs truncate">{task.description}</TableCell>
+                                        <TableCell>{getProjectById(task.projectId)?.name}</TableCell>
+                                        <TableCell>{task.status}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" onClick={() => handleStart(task)} disabled={isRunning}>
+                                                <PlayCircle className="h-5 w-5 text-accent" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                                        You have no assigned tasks.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
+            </CardContent>
         </Card>
         
         <video ref={videoRef} className="w-0 h-0" autoPlay muted playsInline />
@@ -235,13 +310,48 @@ export function WorkTracker() {
             </Alert>
         )}
 
+      </div>
+
+      <div className="lg:col-span-2 flex flex-col gap-8">
         <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>AI Assistant</CardTitle>
+            <CardDescription>Get a project suggestion for a new task.</CardDescription>
+          </CardHeader>
+          <CardContent>
+             <div className="space-y-4">
+              <Textarea
+                placeholder="Describe your current task... e.g., 'fixing bugs on the checkout page'"
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                rows={3}
+                disabled={isRunning}
+              />
+              <Button onClick={handleSuggestProject} disabled={isSuggesting || isRunning} className="w-full">
+                {isSuggesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
+                Suggest Project
+              </Button>
+              {isSuggesting && <Skeleton className="h-24 w-full" />}
+              {suggestion && (
+                <Card className="bg-muted/50">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Suggested Project: {suggestion.suggestedProjectName}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">{suggestion.reason}</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Session History</CardTitle>
             <CardDescription>A log of your recent work sessions.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-72">
+            <ScrollArea className="h-48">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -269,41 +379,6 @@ export function WorkTracker() {
                 </TableBody>
               </Table>
             </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="lg:col-span-2">
-        <Card className="shadow-lg min-h-full">
-          <CardHeader>
-            <CardTitle>AI Assistant</CardTitle>
-            <CardDescription>Get a project suggestion for your task.</CardDescription>
-          </CardHeader>
-          <CardContent>
-             <div className="space-y-4">
-              <Textarea
-                placeholder="Describe your current task... e.g., 'fixing bugs on the checkout page'"
-                value={taskDescription}
-                onChange={(e) => setTaskDescription(e.target.value)}
-                rows={3}
-                disabled={isRunning}
-              />
-              <Button onClick={handleSuggestProject} disabled={isSuggesting || isRunning} className="w-full">
-                {isSuggesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
-                Suggest Project
-              </Button>
-              {isSuggesting && <Skeleton className="h-24 w-full" />}
-              {suggestion && (
-                <Card className="bg-muted/50">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Suggested Project: {suggestion.suggestedProjectName}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">{suggestion.reason}</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
           </CardContent>
         </Card>
       </div>

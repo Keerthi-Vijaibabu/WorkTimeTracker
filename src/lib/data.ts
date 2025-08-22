@@ -87,10 +87,11 @@ export const createUserDocument = async (uid: string, email: string) => {
     const userRef = doc(db, 'users', uid);
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
+        const isKeerthi = email.toLowerCase() === 'keerthi.vijaibabu@gmail.com';
         await setDoc(userRef, {
             email: email,
             name: email.split('@')[0],
-            role: 'worker'
+            role: isKeerthi ? 'admin' : 'worker'
         });
     }
 }
@@ -140,7 +141,7 @@ export const getUserSessions = (callback: (sessions: UserSession[]) => void, uid
         // Get sessions for a specific user
         sessionsQuery = query(collection(db, 'users', uid, 'sessions'), orderBy('stopTime', 'desc'));
     } else {
-        // Get all sessions for admin view
+        // Get all sessions for admin view using a collection group query
         sessionsQuery = query(collectionGroup(db, 'sessions'), orderBy('stopTime', 'desc'));
     }
     
@@ -160,6 +161,7 @@ export const addUserSession = async (uid: string, session: Omit<UserSession, 'id
 
 // Verification Log
 export const getVerificationLog = (callback: (logs: VerificationLogEntry[]) => void) => {
+    // Admin view: get all verification logs from all users
     const logCol = collectionGroup(db, 'verificationLog');
     const q = query(logCol, orderBy('timestamp', 'desc'));
     

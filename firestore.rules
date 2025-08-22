@@ -1,40 +1,41 @@
-
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Allow admin full read/write access to all collections
-    function isAdmin() {
-      return request.auth.token.email == "keerthi.vijaibabu@gmail.com";
+    // Helper function to check if a user is an admin
+    function isAdmin(userEmail) {
+      // Replace with your actual admin email
+      return userEmail == "admin@example.com";
     }
 
-    // Users can only read/write their own documents
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    // Allow read for all authenticated users, but write only for admin
+    // Projects: Logged-in users can read, admins can write
     match /projects/{projectId} {
       allow read: if request.auth != null;
-      allow write: if isAdmin();
+      allow write: if request.auth != null && isAdmin(request.auth.token.email);
     }
 
-    // Allow read for all authenticated users, but write only for admin
+    // Tasks: Logged-in users can read all tasks.
+    // They can create tasks and can only update tasks assigned to them.
+    // Admins can write any task.
     match /tasks/{taskId} {
       allow read: if request.auth != null;
-      allow write: if isAdmin();
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && (resource.data.assignedTo == request.auth.token.email || isAdmin(request.auth.token.email));
     }
-
-    // Users can create their own sessions, admin can read all
+    
+    // User Sessions: Users can only create sessions for themselves.
+    // Admins can read all sessions.
     match /userSessions/{sessionId} {
-      allow read: if isAdmin();
+      allow read: if request.auth != null && isAdmin(request.auth.token.email);
       allow create: if request.auth != null && request.resource.data.userEmail == request.auth.token.email;
     }
 
-    // Users can create their own verification logs, admin can read all
+    // Verification Log: Users can only create logs for themselves.
+    // Admins can read all logs.
     match /verificationLog/{logId} {
-       allow read: if isAdmin();
-       allow create: if request.auth != null && request.resource.data.userEmail == request.auth.token.email;
+      allow read: if request.auth != null && isAdmin(request.auth.token.email);
+      allow create: if request.auth != null && request.resource.data.userEmail == request.auth.token.email;
     }
   }
 }

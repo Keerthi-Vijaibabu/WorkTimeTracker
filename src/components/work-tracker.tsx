@@ -16,8 +16,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/hooks/use-auth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import type { Session, UserSession, Task, Project } from '@/lib/data';
-import { addUserSession, addVerificationLog, getProjects, getTasks, updateTaskStatus, getProjectById } from '@/lib/data';
+import type { UserSession, Task, Project } from '@/lib/data';
+import { addUserSession, addVerificationLog, getProjects, getTasks, updateTaskStatus, getProjectById, getUserSessions } from '@/lib/data';
 import { Timestamp } from 'firebase/firestore';
 
 
@@ -26,7 +26,7 @@ export function WorkTracker() {
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [startTime, setStartTime] = useState<Date | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessions, setSessions] = useState<UserSession[]>([]);
   const [currentProject, setCurrentProject] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [myTasks, setMyTasks] = useState<Task[]>([]);
@@ -80,7 +80,7 @@ export function WorkTracker() {
   };
 
   const handleVerifyWorking = useCallback(async () => {
-    if (!videoRef.current || !videoRef.current.srcObject) return;
+    if (!videoRef.current || !videoRef.current.srcObject || !user?.email) return;
 
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
@@ -92,7 +92,7 @@ export function WorkTracker() {
       const photoDataUri = canvas.toDataURL('image/jpeg');
       
       try {
-        const previousTasks = sessions.map(s => `Worked for ${formatTime(s.duration)} on ${s.startTime.toLocaleDateString()}`);
+        const previousTasks = sessions.map(s => `Worked on ${s.project} for ${formatTime(s.duration)} on ${s.stopTime.toDate().toLocaleDateString()}`);
         const result = await verifyWorking({ photoDataUri, previousTasks: previousTasks.slice(0, 3) });
         if(user?.email){
             await addVerificationLog({ photoDataUri, result, timestamp: Timestamp.now(), userEmail: user.email });
@@ -142,7 +142,21 @@ export function WorkTracker() {
   useEffect(() => {
     fetchMyTasks();
     fetchProjects();
-  }, [fetchMyTasks, fetchProjects]);
+    
+    let unsubscribe: () => void;
+    if (user?.email) {
+      unsubscribe = getUserSessions((allSessions) => {
+        const userSessions = allSessions.filter(s => s.userEmail === user.email);
+        setSessions(userSessions);
+      });
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [fetchMyTasks, fetchProjects, user?.email]);
 
   const handleStart = async (task: Task | null = null) => {
     let projectToStart = '';
@@ -154,7 +168,7 @@ export function WorkTracker() {
     }
     
     if (task) {
-        const project = await getProjectById(task.projectId);
+        const project = projects.find(p => p.id === task.projectId);
         if(project) {
             projectToStart = project.name;
             setCurrentProject(project.name);
@@ -187,17 +201,12 @@ export function WorkTracker() {
   const handleStop = async () => {
     if (startTime) {
       const stopTime = new Date();
-      const newSession: Session = { 
-        startTime, 
-        stopTime, 
-        duration: stopTime.getTime() - startTime.getTime() 
-      };
-      setSessions(prev => [newSession, ...prev]);
+      const duration = stopTime.getTime() - startTime.getTime();
       
       const userSession: Omit<UserSession, 'id'> = {
         startTime: Timestamp.fromDate(startTime),
         stopTime: Timestamp.fromDate(stopTime),
-        duration: newSession.duration,
+        duration: duration,
         userEmail: user?.email || 'Anonymous',
         project: currentProject,
       }
@@ -244,12 +253,6 @@ export function WorkTracker() {
       setIsSuggesting(false);
     }
   };
-
-  const getProjectName = async (projectId: string) => {
-    const project = await getProjectById(projectId);
-    return project?.name || 'Unknown';
-  };
-
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 p-4 md:p-6">
@@ -399,10 +402,10 @@ export function WorkTracker() {
                 <TableBody>
                   {sessions.length > 0 ? (
                     sessions.map((session, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{isClient ? session.startTime.toLocaleDateString() : ''}</TableCell>
-                        <TableCell>{isClient ? session.startTime.toLocaleTimeString() : ''}</TableCell>
-                        <TableCell>{isClient ? session.stopTime.toLocaleTimeString() : ''}</TableCell>
+                      <TableRow key={session.id || index}>
+                        <TableCell>{isClient ? session.startTime.toDate().toLocaleDateString() : ''}</TableCell>
+                        <TableCell>{isClient ? session.startTime.toDate().toLocaleTimeString() : ''}</TableCell>
+                        <TableCell>{isClient ? session.stopTime.toDate().toLocaleTimeString() : ''}</TableCell>
                         <TableCell className="text-right">{isClient ? formatTime(session.duration) : ''}</TableCell>
                       </TableRow>
                     ))
@@ -420,3 +423,5 @@ export function WorkTracker() {
     </div>
   );
 }
+
+    

@@ -45,7 +45,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const checkAdminStatus = useCallback(async (user: User | null) => {
     if (user?.uid) {
-      // Ensure user document exists before checking admin status
       await createUserDocument(user.uid, user.email!);
       const adminStatus = await isAdmin(user.uid);
       setIsAdminUser(adminStatus);
@@ -83,9 +82,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signup = async (email: string, pass: string) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-    // Create a corresponding user document in Firestore
     await createUserDocument(userCredential.user.uid, userCredential.user.email!);
-    // Re-check admin status after creation
     await checkAdminStatus(userCredential.user);
     return userCredential;
   };
@@ -113,18 +110,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     logout,
     changePassword,
   };
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
-  }
   
   const isAuthPage = pathname === '/login' || pathname === '/signup';
+  
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
+  }
+
   if (!user && !isAuthPage) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+     return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
   }
   
   if (user && isAuthPage) {
-     return <div className="flex items-center justify-center h-screen">Loading...</div>;
+      return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
   }
 
   return (

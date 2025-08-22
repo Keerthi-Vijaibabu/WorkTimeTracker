@@ -1,7 +1,7 @@
 
 import { type VerifyWorkingOutput } from "@/ai/flows/verify-working-flow";
-import { db } from './firebase';
-import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, Timestamp, orderBy, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
+import { db, auth } from './firebase';
+import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, Timestamp, orderBy, onSnapshot, getDoc, setDoc, collectionGroup } from 'firebase/firestore';
 
 // Data types
 export type Session = {
@@ -42,34 +42,18 @@ export type Task = {
 }
 
 export type User = {
-    id: string;
+    id: string; // This will now be the Firebase Auth UID
     email: string;
     name: string;
     role: 'admin' | 'worker';
 }
 
-// In-memory data for users, will be seeded into firestore
-let users: User[] = [
-    { id: 'alice@example.com', name: 'Alice', email: 'alice@example.com', role: 'admin' },
-    { id: 'bob@example.com', name: 'Bob', email: 'bob@example.com', role: 'worker' },
-    { id: 'keerthi.vijaibabu@gmail.com', name: 'Keerthi', email: 'keerthi.vijaibabu@gmail.com', role: 'admin' },
-];
-
-export const seedUsers = async () => {
-    const usersCol = collection(db, 'users');
-    const snapshot = await getDocs(usersCol);
-    if (snapshot.empty) {
-        console.log('Seeding users...');
-        for (const user of users) {
-            const userRef = doc(db, 'users', user.email);
-            // Use setDoc with the user's email as the document ID
-            await setDoc(userRef, {
-                email: user.email,
-                name: user.name,
-                role: user.role
-            });
-        }
-    }
+// Seeding initial users is tricky with UID-based documents.
+// We'll now handle user document creation on first sign-up via the `isAdmin` check.
+// This seed function can be used for other collections if needed in the future.
+export const seedData = async () => {
+    // This function can be expanded to seed projects, etc.
+    console.log('Seeding data if needed...');
 };
 
 
@@ -80,35 +64,36 @@ export const getUsers = async (): Promise<User[]> => {
 };
 
 export const updateUserRole = async (userId: string, role: 'admin' | 'worker') => {
+    // userId is now the UID
     const userRef = doc(db, "users", userId);
     await updateDoc(userRef, { role });
 };
 
 
-export const isAdmin = async (email: string): Promise<boolean> => {
-    if (!email) return false;
-    const userRef = doc(db, "users", email);
+export const isAdmin = async (uid: string | undefined): Promise<boolean> => {
+    if (!uid) return false;
+    const userRef = doc(db, "users", uid);
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-        // If the user doc doesn't exist, they might be a newly signed up user.
-        // Let's create a record for them with a default 'worker' role.
-        try {
-            await setDoc(userRef, {
-                email: email,
-                name: email.split('@')[0], // Default name from email
-                role: 'worker'
-            });
-            return false; // They are a worker by default.
-        } catch (error) {
-            console.error("Error creating user document:", error);
-            return false;
-        }
+       return false;
     }
     
     const user = userSnap.data() as Omit<User, 'id'>;
     return user.role === 'admin';
 };
+
+export const createUserDocument = async (uid: string, email: string) => {
+    const userRef = doc(db, 'users', uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+        await setDoc(userRef, {
+            email: email,
+            name: email.split('@')[0],
+            role: 'worker'
+        });
+    }
+}
 
 
 // --- Firestore Functions ---
@@ -121,8 +106,9 @@ export const getProjects = async (): Promise<Project[]> => {
     return projectList;
 };
 export const getProjectById = async (id: string): Promise<Project | null> => {
-    const projects = await getProjects();
-    return projects.find(p => p.id === id) || null;
+    const docRef = doc(db, 'projects', id);
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as Project : null;
 }
 
 export const addProject = async (project: Omit<Project, 'id'>) => {
@@ -145,16 +131,20 @@ export const addTask = async (task: Omit<Task, 'id'>) => {
 export const updateTaskStatus = async (taskId: string, status: Task['status']) => {
     const taskRef = doc(db, "tasks", taskId);
     await updateDoc(taskRef, { status });
-    const tasks = await getTasks();
-    return tasks.find(t => t.id === taskId) || null;
 }
 
 // User Sessions
-export const getUserSessions = (callback: (sessions: UserSession[]) => void) => {
-    const sessionsCol = collection(db, 'userSessions');
-    const q = query(sessionsCol, orderBy('stopTime', 'desc'));
-
-    return onSnapshot(q, (querySnapshot) => {
+export const getUserSessions = (callback: (sessions: UserSession[]) => void, uid?: string) => {
+    let sessionsQuery;
+    if (uid) {
+        // Get sessions for a specific user
+        sessionsQuery = query(collection(db, 'users', uid, 'sessions'), orderBy('stopTime', 'desc'));
+    } else {
+        // Get all sessions for admin view
+        sessionsQuery = query(collectionGroup(db, 'sessions'), orderBy('stopTime', 'desc'));
+    }
+    
+    return onSnapshot(sessionsQuery, (querySnapshot) => {
         const sessions: UserSession[] = [];
         querySnapshot.forEach((doc) => {
             sessions.push({ id: doc.id, ...doc.data() } as UserSession);
@@ -163,13 +153,14 @@ export const getUserSessions = (callback: (sessions: UserSession[]) => void) => 
     });
 };
 
-export const addUserSession = async (session: Omit<UserSession, 'id'>) => {
-    await addDoc(collection(db, "userSessions"), session);
+export const addUserSession = async (uid: string, session: Omit<UserSession, 'id'>) => {
+    if (!uid) throw new Error("User not authenticated");
+    await addDoc(collection(db, "users", uid, "sessions"), session);
 };
 
 // Verification Log
 export const getVerificationLog = (callback: (logs: VerificationLogEntry[]) => void) => {
-    const logCol = collection(db, 'verificationLog');
+    const logCol = collectionGroup(db, 'verificationLog');
     const q = query(logCol, orderBy('timestamp', 'desc'));
     
     return onSnapshot(q, (querySnapshot) => {
@@ -181,6 +172,7 @@ export const getVerificationLog = (callback: (logs: VerificationLogEntry[]) => v
     });
 };
 
-export const addVerificationLog = async (log: Omit<VerificationLogEntry, 'id'>) => {
-    await addDoc(collection(db, "verificationLog"), log);
+export const addVerificationLog = async (uid: string, log: Omit<VerificationLogEntry, 'id'>) => {
+    if (!uid) throw new Error("User not authenticated");
+    await addDoc(collection(db, "users", uid, "verificationLog"), log);
 }

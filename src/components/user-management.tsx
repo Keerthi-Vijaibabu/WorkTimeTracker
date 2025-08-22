@@ -24,12 +24,15 @@ export function UserManagement() {
   }, []);
 
   const handleRoleChange = async (userId: string, newRole: 'admin' | 'worker') => {
-    if (userId === currentUser?.email) {
+    // userId is now UID
+    if (userId === currentUser?.uid) {
       toast({
         variant: 'destructive',
         title: 'Error',
         description: "You cannot change your own role.",
       });
+      // Re-fetch to revert the optimistic UI change in the Select
+      fetchUsers();
       return;
     }
     
@@ -46,6 +49,8 @@ export function UserManagement() {
         title: 'Error',
         description: 'Failed to update user role.',
       });
+      // Re-fetch to revert the optimistic UI change in the Select
+      fetchUsers();
     }
   };
 
@@ -75,7 +80,7 @@ export function UserManagement() {
                       <Select
                         value={user.role}
                         onValueChange={(newRole: 'admin' | 'worker') => handleRoleChange(user.id, newRole)}
-                        disabled={user.email === currentUser?.email}
+                        disabled={user.id === currentUser?.uid}
                       >
                         <SelectTrigger className="w-[120px]">
                           <SelectValue placeholder="Select role" />

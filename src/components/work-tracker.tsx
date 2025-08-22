@@ -17,7 +17,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import type { UserSession, Task, Project } from '@/lib/data';
-import { addUserSession, addVerificationLog, getProjects, getTasks, updateTaskStatus, getProjectById, getUserSessions } from '@/lib/data';
+import { addUserSession, addVerificationLog, getProjects, getTasks, updateTaskStatus, getUserSessions } from '@/lib/data';
 import { Timestamp } from 'firebase/firestore';
 
 
@@ -80,7 +80,7 @@ export function WorkTracker() {
   };
 
   const handleVerifyWorking = useCallback(async () => {
-    if (!videoRef.current || !videoRef.current.srcObject || !user?.email) return;
+    if (!videoRef.current || !videoRef.current.srcObject || !user?.uid) return;
 
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
@@ -95,7 +95,7 @@ export function WorkTracker() {
         const previousTasks = sessions.map(s => `Worked on ${s.project} for ${formatTime(s.duration)} on ${s.stopTime.toDate().toLocaleDateString()}`);
         const result = await verifyWorking({ photoDataUri, previousTasks: previousTasks.slice(0, 3) });
         if(user?.email){
-            await addVerificationLog({ photoDataUri, result, timestamp: Timestamp.now(), userEmail: user.email });
+            await addVerificationLog(user.uid, { photoDataUri, result, timestamp: Timestamp.now(), userEmail: user.email });
         }
         console.log("Work verification successful", result);
       } catch (error) {
@@ -143,12 +143,9 @@ export function WorkTracker() {
     fetchMyTasks();
     fetchProjects();
     
-    let unsubscribe: () => void;
-    if (user?.email) {
-      unsubscribe = getUserSessions((allSessions) => {
-        const userSessions = allSessions.filter(s => s.userEmail === user.email);
-        setSessions(userSessions);
-      });
+    let unsubscribe: (() => void) | undefined;
+    if (user?.uid) {
+      unsubscribe = getUserSessions(setSessions, user.uid);
     }
 
     return () => {
@@ -156,7 +153,7 @@ export function WorkTracker() {
         unsubscribe();
       }
     };
-  }, [fetchMyTasks, fetchProjects, user?.email]);
+  }, [fetchMyTasks, fetchProjects, user?.uid]);
 
   const handleStart = async (task: Task | null = null) => {
     let projectToStart = '';
@@ -199,7 +196,7 @@ export function WorkTracker() {
   };
 
   const handleStop = async () => {
-    if (startTime) {
+    if (startTime && user?.uid) {
       const stopTime = new Date();
       const duration = stopTime.getTime() - startTime.getTime();
       
@@ -210,12 +207,12 @@ export function WorkTracker() {
         userEmail: user?.email || 'Anonymous',
         project: currentProject,
       }
-      await addUserSession(userSession);
+      await addUserSession(user.uid, userSession);
     }
     setIsRunning(false);
     
     if(activeTask){
-        await updateTaskStatus(activeTask.id, 'todo');
+        await updateTaskStatus(activeTask.id, 'done');
         await fetchMyTasks();
         setActiveTask(null);
     }
@@ -394,8 +391,7 @@ export function WorkTracker() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>Start Time</TableHead>
-                    <TableHead>End Time</TableHead>
+                    <TableHead>Project</TableHead>
                     <TableHead className="text-right">Duration</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -403,15 +399,14 @@ export function WorkTracker() {
                   {sessions.length > 0 ? (
                     sessions.map((session, index) => (
                       <TableRow key={session.id || index}>
-                        <TableCell>{isClient ? session.startTime.toDate().toLocaleDateString() : ''}</TableCell>
-                        <TableCell>{isClient ? session.startTime.toDate().toLocaleTimeString() : ''}</TableCell>
-                        <TableCell>{isClient ? session.stopTime.toDate().toLocaleTimeString() : ''}</TableCell>
+                        <TableCell>{isClient ? session.stopTime.toDate().toLocaleDateString() : ''}</TableCell>
+                        <TableCell>{session.project}</TableCell>
                         <TableCell className="text-right">{isClient ? formatTime(session.duration) : ''}</TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">No sessions recorded yet.</TableCell>
+                      <TableCell colSpan={3} className="text-center text-muted-foreground">No sessions recorded yet.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -423,5 +418,3 @@ export function WorkTracker() {
     </div>
   );
 }
-
-    

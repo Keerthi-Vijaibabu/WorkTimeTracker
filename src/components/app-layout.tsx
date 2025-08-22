@@ -89,7 +89,7 @@ function NavItem({
   const pathname = usePathname();
   const isActive = pathname === href;
   return (
-    <Link href={href} passHref>
+    <Link href={href}>
       <SidebarMenuButton asChild isActive={isActive}>{children}</SidebarMenuButton>
     </Link>
   );

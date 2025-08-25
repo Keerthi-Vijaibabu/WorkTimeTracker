@@ -8,76 +8,43 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function userRecord(uid) {
-      return get(/databases/$(database)/documents/users/$(uid));
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // USERS (doc id = auth.uid)
+    match /users/{uid} {
+      allow read, write: if isAdmin();
+      allow get, update: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn();
+    }
+
+    // PROJECTS
+    match /projects/{projectId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // TASKS
+    match /tasks/{taskId} {
+      allow read: if signedIn();
+      allow create, delete: if isAdmin();
+      
+      // Admins can update anything on a task.
+      // A non-admin can ONLY update the 'status' field of a task assigned to them.
+      allow update: if isAdmin() || (
+        signedIn() 
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && resource.data.assignedTo == request.auth.token.email
+      );
     }
     
-    function isAdmin(uid) {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(uid))
-        && userRecord(uid).data.role == 'admin';
-    }
-
-    // USERS (doc id = auth.uid).
-    match /users/{userId} {
-      // Admins can read/list anyone. Users can only read their own doc.
-      allow get: if signedIn() && (request.auth.uid == userId || isAdmin(request.auth.uid));
-      allow list: if isAdmin(request.auth.uid);
-
-      // Admins can create/update/delete any user.
-      allow create, delete: if isAdmin(request.auth.uid);
-      allow update: if isAdmin(request.auth.uid);
-      
-      // A user can create their own user document on sign-up.
-      // They can only set their own email, name, and a default role of 'worker'.
-      allow create: if signedIn() && request.auth.uid == userId
-                    && request.resource.data.email == request.auth.token.email
-                    && request.resource.data.keys().hasOnly(['email', 'name', 'role'])
-                    && request.resource.data.role == 'worker';
-
-      // A user can update their own non-sensitive info.
-      allow update: if signedIn() && request.auth.uid == userId 
-                  && !('role' in request.resource.data)
-                  && !('email' in request.resource.data);
-    }
-
-    // PROJECTS: readable by any signed-in user; only admins write.
-    match /projects/{projectId} {
-      allow get, list: if signedIn();
-      allow write: if isAdmin(request.auth.uid);
-    }
-
-    // TASKS: anyone signed in can read; only admins create/delete;
-    match /tasks/{taskId} {
-      allow get, list: if signedIn();
-      allow create, delete: if isAdmin(request.auth.uid);
-
-      // Admins can update anything.
-      allow update: if isAdmin(request.auth.uid);
-
-      // Non-admin update: must be the assignee, and can only update status.
-      allow update: if signedIn()
-        && resource.data.assignedTo == request.auth.token.email
-        && request.resource.data.assignedTo == resource.data.assignedTo
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status']);
-    }
-
-    // USER SESSIONS nested under the user
-    match /users/{userId}/sessions/{sessionId} {
-      // Admins can read anyone's sessions. Users can read/write their own.
-      allow list, get: if isAdmin(request.auth.uid) || (signedIn() && request.auth.uid == userId);
-      allow create, update, delete: if signedIn() && request.auth.uid == userId;
-    }
-
-    // VERIFICATION LOGS nested under user
-    match /users/{userId}/verificationLog/{logId} {
-       // Admins can read anyone's logs. Users can read their own.
-      allow list, get: if isAdmin(request.auth.uid) || (signedIn() && request.auth.uid == userId);
-      
-      // User can create logs for themself only
-      allow create: if signedIn()
-        && request.auth.uid == userId
-        && request.resource.data.userEmail == request.auth.token.email;
+    // USER-SPECIFIC SUBCOLLECTIONS
+    match /users/{uid}/{collection}/{docId} {
+        // Only the user themselves or an admin can access these subcollections.
+        allow read, write: if (signedIn() && request.auth.uid == uid) || isAdmin();
     }
   }
 }

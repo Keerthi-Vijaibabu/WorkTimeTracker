@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -12,19 +11,32 @@ service cloud.firestore {
       return signedIn() && request.auth.token.admin == true;
     }
 
-    match /users/{userId} {
-      allow read, update, delete: if request.auth.uid == userId || isAdmin();
-      allow create: if signedIn();
-
-      match /sessions/{sessionId} {
-        allow read, write: if request.auth.uid == userId;
-      }
-
-      match /verificationLog/{logId} {
-        allow read, write: if request.auth.uid == userId;
-      }
+    // Rules for collection group queries used by the admin panel
+    match /{path=**}/sessions/{sessionId} {
+      allow read: if isAdmin();
+    }
+    
+    match /{path=**}/verificationLog/{logId} {
+      allow read: if isAdmin();
     }
 
+    // User-specific rules
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId || isAdmin();
+
+      // Sessions can be created by the user, and read by the user or an admin.
+      match /sessions/{sessionId} {
+        allow create: if request.auth.uid == userId;
+        // Read access is handled by the user-specific rule above and the collection group rule
+      }
+
+      // Verification logs can be created by the user, and read by an admin.
+      match /verificationLog/{logId} {
+        allow create: if request.auth.uid == userId;
+        // Read access for admins is handled by the collection group rule.
+      }
+    }
+    
     match /projects/{projectId} {
       allow read: if signedIn();
       allow write: if isAdmin();
@@ -33,19 +45,9 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read: if signedIn();
       allow create: if isAdmin();
-      allow update: if isAdmin() || 
-                      (signedIn() && 
-                       resource.data.assignedTo == request.auth.token.email && 
-                       request.resource.data.keys().hasOnly(['status']));
-    }
-
-    // Collection Group queries
-    match /{path=**}/sessions/{sessionId} {
-      allow read: if isAdmin();
-    }
-
-    match /{path=**}/verificationLog/{logId} {
-      allow read: if isAdmin();
+      // Admins can update any field.
+      // Users can only update the status of a task assigned to them.
+      allow update: if isAdmin() || (request.auth.uid != null && request.resource.data.assignedTo == request.auth.token.email && request.resource.diff(resource).affectedKeys().hasOnly(['status']));
     }
   }
 }

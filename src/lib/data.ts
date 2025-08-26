@@ -142,7 +142,7 @@ export const getUserSessions = (callback: (sessions: UserSession[]) => void, uid
         sessionsQuery = query(collection(db, 'users', uid, 'sessions'), orderBy('stopTime', 'desc'));
     } else {
         // Get all sessions for admin view using a collection group query
-        sessionsQuery = query(collectionGroup(db, 'sessions'), orderBy('stopTime', 'desc'));
+        sessionsQuery = query(collectionGroup(db, 'sessions'));
     }
     
     return onSnapshot(sessionsQuery, (querySnapshot) => {
@@ -161,7 +161,7 @@ export const addUserSession = async (uid: string, session: Omit<UserSession, 'id
 
 // Verification Log
 export const getVerificationLog = (callback: (logs: VerificationLogEntry[]) => void) => {
-    const q = query(collectionGroup(db, 'verificationLog'), orderBy('timestamp', 'desc'));
+    const q = query(collectionGroup(db, 'verificationLog'));
     
     return onSnapshot(q, (querySnapshot) => {
         const logs: VerificationLogEntry[] = [];

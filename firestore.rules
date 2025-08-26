@@ -1,61 +1,57 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helpers
     function signedIn() {
       return request.auth != null;
     }
 
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    
     function isAdmin() {
-      // Use custom claims for admin role. This is required for collectionGroup queries.
-      return signedIn() && request.auth.token.admin == true;
+      return request.auth.token.admin == true;
     }
 
-    // USERS (doc id = auth.uid). Users read their own doc; admin can do anything.
     match /users/{uid} {
-      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
-      allow list, delete, create: if isAdmin();
-      allow update: if request.auth.uid == uid;
-    }
+      allow read, write: if isUser(uid) || isAdmin();
 
-    // PROJECTS: readable by any signed-in user; only admins write.
-    match /projects/{projectId} {
-      allow list, get: if signedIn();
-      allow write: if isAdmin();
-    }
-
-    // TASKS: anyone signed in can read; only admins create/delete;
-    // user can update the status of a task assigned to them.
-    match /tasks/{taskId} {
-      allow get, list: if signedIn();
-      allow create, delete: if isAdmin();
+      match /sessions/{sessionId} {
+        allow read, write: if isUser(uid);
+      }
       
-      // An admin can update any field.
-      // A user can only update the status of a task assigned to them.
-      allow update: if isAdmin() || (
-        signedIn() && 
-        resource.data.assignedTo == request.auth.token.email &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-      );
+      match /verificationLog/{logId} {
+        // A user can create their own verification log
+        allow create: if isUser(uid);
+        // Only admins can read/update/delete them after creation
+        allow read, update, delete: if isAdmin();
+      }
     }
 
-    // USER SESSIONS nested under the user
-    match /users/{uid}/sessions/{sessionId} {
-      // An admin can read/list any session.
-      allow get, list: if isAdmin();
-      // A user can read/list/create their own sessions.
-      allow read, list, create: if signedIn() && request.auth.uid == uid;
+    // Admins can read all sessions via collection group query
+    match /{path=**}/sessions/{sessionId} {
+      allow read: if isAdmin();
+    }
+    
+    // Admins can read all verification logs via collection group query
+    match /{path=**}/verificationLog/{logId} {
+      allow read: if isAdmin();
     }
 
-    // VERIFICATION LOGS nested under user
-    match /users/{uid}/verificationLog/{logId} {
-       // An admin can read/list any log.
-      allow get, list: if isAdmin();
-      // A user can create and read their own logs.
-      allow create, read, list: if signedIn() && request.auth.uid == uid;
+    match /projects/{projectId} {
+      allow read, list: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /tasks/{taskId} {
+      allow read, list: if signedIn();
+      allow create: if isAdmin();
+      // Admins can update anything.
+      // Users can update the status of a task assigned to them.
+      allow update: if (isAdmin() || (isUser(resource.data.assignedTo) && request.resource.data.status != resource.data.status));
+      allow delete: if isAdmin();
     }
   }
 }

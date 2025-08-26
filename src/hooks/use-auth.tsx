@@ -48,8 +48,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(true);
       if (user) {
         await createUserDocument(user.uid, user.email!);
-        const idTokenResult = await user.getIdTokenResult();
-        const adminStatus = !!idTokenResult.claims.admin;
+        const adminStatus = await checkIsAdmin(user.uid);
         setUser(user);
         setIsAdminUser(adminStatus);
       } else {

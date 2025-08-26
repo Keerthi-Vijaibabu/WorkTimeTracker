@@ -73,15 +73,14 @@ export const deleteUser = async (userId: string) => {
 };
 
 
-export const isAdmin = async (uid: string | undefined): Promise<boolean> => {
-    if (!auth.currentUser) return false;
-    try {
-        const token = await auth.currentUser.getIdTokenResult();
-        return !!token.claims.admin;
-    } catch (error) {
-        console.error("Error checking admin status:", error);
-        return false;
+export const checkIsAdmin = async (uid: string): Promise<boolean> => {
+    if (!uid) return false;
+    const userRef = doc(db, 'users', uid);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+        return userSnap.data().role === 'admin';
     }
+    return false;
 };
 
 export const createUserDocument = async (uid: string, email: string) => {

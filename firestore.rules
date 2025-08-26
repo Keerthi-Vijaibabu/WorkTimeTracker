@@ -2,68 +2,37 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
+    
     function signedIn() {
-      return request.auth.uid != null;
+      return request.auth != null;
     }
-
+    
     function isAdmin() {
-      // Check if the user is signed in and if their role in the /users collection is 'admin'
-      return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-    
-    // Rules for the 'users' collection
-    match /users/{userId} {
-      // A user can read or write to their own user document
+
+    match /users/{userId}/{documents=**} {
       allow read, write: if signedIn() && request.auth.uid == userId;
-      // An admin can update or delete any user document
-      allow update, delete: if isAdmin();
-      // Any signed-in user can create a user document (on signup)
-      allow create: if signedIn();
     }
     
-    // Rules for user-specific subcollections
-    match /users/{userId}/sessions/{sessionId} {
-        // A user can read and write to their own sessions
-        allow read, write: if signedIn() && request.auth.uid == userId;
-    }
-    
-    match /users/{userId}/verificationLog/{logId} {
-        // A user can read and write to their own verification logs
-        allow read, write: if signedIn() && request.auth.uid == userId;
-    }
-
-    // Rules for collection group queries - needed for admin dashboard
-    match /{path=**}/sessions/{sessionId} {
-        // An admin can read (list) all sessions from all users
-        allow read: if isAdmin();
-    }
-    
-    match /{path=**}/verificationLog/{logId} {
-         // An admin can read (list) all verification logs from all users
-        allow read: if isAdmin();
-    }
-
-    // Rules for 'projects' collection
     match /projects/{projectId} {
-      // Any signed-in user can read projects
-      allow read: if signedIn();
-      // Only admins can write (create, update, delete) projects
-      allow write: if isAdmin();
+        allow read: if signedIn();
+        allow write: if isAdmin();
     }
     
-    // Rules for 'tasks' collection
     match /tasks/{taskId} {
-      // Any signed-in user can read tasks
-      allow read: if signedIn();
-      // Only admins can create, update, or delete tasks entirely
-      allow create, delete: if isAdmin();
-      // For updates, allow admin OR allow the assigned user to change the status
-      allow update: if isAdmin() || (
-        signedIn() && 
-        request.auth.token.email == resource.data.assignedTo &&
-        request.resource.data.status != resource.data.status
-      );
+        allow read: if signedIn();
+        allow create, update: if isAdmin();
+        allow update: if signedIn() && request.auth.token.email == request.resource.data.assignedTo && request.resource.data.status != resource.data.status;
+    }
+
+    // Rules for collection group queries by admins
+    match /{path=**}/sessions/{sessionId} {
+      allow read: if isAdmin();
+    }
+
+    match /{path=**}/verificationLog/{logId} {
+      allow read: if isAdmin();
     }
   }
 }

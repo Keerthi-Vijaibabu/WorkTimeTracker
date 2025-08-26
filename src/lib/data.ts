@@ -38,7 +38,7 @@ export type Task = {
     projectId: string;
     assignedTo: string; // user email
     description: string;
-    status: 'todo' | 'inprogress' | 'done';
+    status: 'todo' | 'inprogress' | 'completed' | 'verified';
 }
 
 export type User = {
@@ -122,7 +122,7 @@ export const getTasks = async (): Promise<Task[]> => {
 
 export const addTask = async (task: Omit<Task, 'id'>) => {
     const docRef = await addDoc(collection(db, "tasks"), task);
-    return { id: docRef.id, ...task };
+    return { id: docRef.id, ...task, status: 'todo' };
 };
 
 export const updateTaskStatus = async (taskId: string, status: Task['status']) => {

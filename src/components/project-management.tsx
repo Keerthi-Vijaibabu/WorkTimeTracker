@@ -5,17 +5,22 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getProjects, getTasks, type Project, type Task } from '@/lib/data';
+import { getProjects, getTasks, type Project, type Task, updateTaskStatus } from '@/lib/data';
 import { CreateProjectForm } from './create-project-form';
 import { AssignTaskForm } from './assign-task-form';
 import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
+import { Check, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export function ProjectManagement() {
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [verifyingTaskId, setVerifyingTaskId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const fetchProjects = async () => {
     if(user) setProjects(await getProjects());
@@ -38,6 +43,26 @@ export function ProjectManagement() {
   const handleTaskAssigned = (newTask: Task) => {
     setTasks(prev => [...prev, newTask]);
     fetchTasks();
+  }
+
+  const handleVerifyTask = async (taskId: string) => {
+    setVerifyingTaskId(taskId);
+    try {
+      await updateTaskStatus(taskId, 'verified');
+      await fetchTasks();
+      toast({
+        title: "Task Verified",
+        description: "The task has been successfully verified and is now closed."
+      })
+    } catch(e) {
+        toast({
+            variant: 'destructive',
+            title: 'Verification Failed',
+            description: 'Could not verify the task. Please try again.'
+        })
+    } finally {
+        setVerifyingTaskId(null);
+    }
   }
 
   const getProjectName = (projectId: string) => {
@@ -99,6 +124,7 @@ export function ProjectManagement() {
                     <TableHead>Assigned To</TableHead>
                     <TableHead>Task</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -113,17 +139,30 @@ export function ProjectManagement() {
                                 className={cn({
                                     'bg-gray-500': task.status === 'todo',
                                     'bg-blue-500': task.status === 'inprogress',
-                                    'bg-green-500': task.status === 'done',
+                                    'bg-yellow-500': task.status === 'completed',
+                                    'bg-green-500': task.status === 'verified',
                                 }, 'text-white')}
                             >
                                 {task.status}
                             </Badge>
                         </TableCell>
+                         <TableCell className="text-right">
+                           {task.status === 'completed' && (
+                             <Button 
+                                size="sm" 
+                                onClick={() => handleVerifyTask(task.id)}
+                                disabled={verifyingTaskId === task.id}
+                             >
+                               {verifyingTaskId === task.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                               Verify
+                             </Button>
+                           )}
+                        </TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                         No tasks assigned yet.
                       </TableCell>
                     </TableRow>

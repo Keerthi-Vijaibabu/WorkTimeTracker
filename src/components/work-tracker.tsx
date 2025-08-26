@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Square, BrainCircuit, Loader2, PlayCircle } from 'lucide-react';
+import { Play, Square, BrainCircuit, Loader2, PlayCircle, CheckCircle } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/hooks/use-auth';
@@ -31,6 +31,8 @@ export function WorkTracker() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [myTasks, setMyTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [previousTaskStatus, setPreviousTaskStatus] = useState<Task['status'] | null>(null);
+
 
   const [taskDescription, setTaskDescription] = useState('');
   const [suggestion, setSuggestion] = useState<SuggestProjectOutput | null>(null);
@@ -129,7 +131,7 @@ export function WorkTracker() {
   const fetchMyTasks = useCallback(async () => {
     if (user?.email) {
         const allTasks = await getTasks();
-        const userTasks = allTasks.filter(task => task.assignedTo === user.email && task.status !== 'done');
+        const userTasks = allTasks.filter(task => task.assignedTo === user.email && task.status !== 'verified');
         setMyTasks(userTasks);
     }
   }, [user?.email]);
@@ -173,6 +175,7 @@ export function WorkTracker() {
             setCurrentProject(project.name);
             setTaskDescription(task.description);
             setActiveTask(task);
+            setPreviousTaskStatus(task.status);
             await updateTaskStatus(task.id, 'inprogress');
             await fetchMyTasks();
         } else {
@@ -213,11 +216,12 @@ export function WorkTracker() {
     }
     setIsRunning(false);
     
-    if(activeTask){
-        await updateTaskStatus(activeTask.id, 'done');
+    if(activeTask && previousTaskStatus){
+        await updateTaskStatus(activeTask.id, previousTaskStatus);
         await fetchMyTasks();
-        setActiveTask(null);
     }
+    setActiveTask(null);
+    setPreviousTaskStatus(null);
     
     if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
@@ -252,6 +256,23 @@ export function WorkTracker() {
       setIsSuggesting(false);
     }
   };
+
+  const handleMarkTaskComplete = async (task: Task) => {
+    try {
+        await updateTaskStatus(task.id, 'completed');
+        await fetchMyTasks();
+        toast({
+            title: "Task Marked as Complete",
+            description: "Your task is now pending admin verification."
+        });
+    } catch (error) {
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: "Could not mark task as complete. Please try again."
+        });
+    }
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 p-4 md:p-6">
@@ -293,7 +314,7 @@ export function WorkTracker() {
         <Card className="shadow-lg border-primary/20">
             <CardHeader>
                 <CardTitle>My Assigned Tasks</CardTitle>
-                <CardDescription>Click the play button on a task to start tracking time for it.</CardDescription>
+                <CardDescription>Start a task or mark it as complete.</CardDescription>
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-48">
@@ -310,15 +331,25 @@ export function WorkTracker() {
                             {myTasks.length > 0 ? (
                                 myTasks.map((task) => {
                                     const project = projects.find(p => p.id === task.projectId);
+                                    const isCompleted = task.status === 'completed';
                                     return (
                                     <TableRow key={task.id}>
                                         <TableCell className="font-medium max-w-xs truncate">{task.description}</TableCell>
                                         <TableCell>{project?.name || 'Loading...'}</TableCell>
                                         <TableCell>{task.status}</TableCell>
                                         <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" onClick={() => handleStart(task)} disabled={isRunning}>
-                                                <PlayCircle className="h-5 w-5 text-accent" />
-                                            </Button>
+                                            {isCompleted ? (
+                                                <span className="text-sm text-muted-foreground italic">Pending Verification</span>
+                                            ) : (
+                                                <div className="flex gap-2 justify-end">
+                                                    <Button variant="ghost" size="icon" onClick={() => handleStart(task)} disabled={isRunning}>
+                                                        <PlayCircle className="h-5 w-5 text-accent" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleMarkTaskComplete(task)} disabled={isRunning}>
+                                                        <CheckCircle className="h-5 w-5 text-green-500" />
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                     )

@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -9,42 +10,52 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Use custom claims for admin role. This is required for collectionGroup queries.
+      return signedIn() && request.auth.token.admin == true;
     }
 
-    // USERS (doc id = auth.uid)
+    // USERS (doc id = auth.uid). Users read their own doc; admin can do anything.
     match /users/{uid} {
-      allow read, write: if isAdmin();
-      allow get, update: if signedIn() && request.auth.uid == uid;
-      allow create: if signedIn();
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list, delete, create: if isAdmin();
+      allow update: if request.auth.uid == uid;
     }
 
-    // PROJECTS
+    // PROJECTS: readable by any signed-in user; only admins write.
     match /projects/{projectId} {
-      allow read: if signedIn();
+      allow list, get: if signedIn();
       allow write: if isAdmin();
     }
 
-    // TASKS
+    // TASKS: anyone signed in can read; only admins create/delete;
+    // user can update the status of a task assigned to them.
     match /tasks/{taskId} {
-      allow read: if signedIn();
+      allow get, list: if signedIn();
       allow create, delete: if isAdmin();
       
-      // Admins can update anything on a task.
-      // A non-admin can ONLY update the 'status' field of a task assigned to them.
+      // An admin can update any field.
+      // A user can only update the status of a task assigned to them.
       allow update: if isAdmin() || (
-        signedIn() 
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-        && resource.data.assignedTo == request.auth.token.email
+        signedIn() && 
+        resource.data.assignedTo == request.auth.token.email &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
       );
     }
-    
-    // USER-SPECIFIC SUBCOLLECTIONS
-    match /users/{uid}/{collection}/{docId} {
-        // Only the user themselves or an admin can access these subcollections.
-        allow read, write: if (signedIn() && request.auth.uid == uid) || isAdmin();
+
+    // USER SESSIONS nested under the user
+    match /users/{uid}/sessions/{sessionId} {
+      // An admin can read/list any session.
+      allow get, list: if isAdmin();
+      // A user can read/list/create their own sessions.
+      allow read, list, create: if signedIn() && request.auth.uid == uid;
+    }
+
+    // VERIFICATION LOGS nested under user
+    match /users/{uid}/verificationLog/{logId} {
+       // An admin can read/list any log.
+      allow get, list: if isAdmin();
+      // A user can create and read their own logs.
+      allow create, read, list: if signedIn() && request.auth.uid == uid;
     }
   }
 }

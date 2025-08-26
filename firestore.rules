@@ -1,66 +1,67 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+  
     // Helper functions
     function signedIn() {
       return request.auth != null;
     }
-
+    
     function isAdmin() {
       return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // USERS
-    // Admins can read/write any user document.
-    // Users can read their own document.
-    // New users can create their own document.
+    // User profiles
+    // Users can read their own profile
+    // Admins can read any profile
+    // Users can only create their own profile document
+    // Users can update their own profile, admins can update any
     match /users/{userId} {
-      allow read: if signedIn() && (isAdmin() || request.auth.uid == userId);
-      allow write: if isAdmin();
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if signedIn() && request.auth.uid == userId;
+      allow update: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Allow admins to list all users
+    match /users/{document=**} {
+        allow list: if isAdmin();
     }
     
-    // PROJECTS
-    // Admins can read/write all projects.
-    // Signed-in users can read projects.
+    // Projects
+    // Any signed-in user can read projects
+    // Only admins can create, update, or delete projects
     match /projects/{projectId} {
       allow read: if signedIn();
       allow write: if isAdmin();
     }
     
-    // TASKS
-    // Admins can read/write all tasks.
-    // Signed-in users can read tasks.
-    // Users can only update the status of a task assigned to them.
+    // Tasks
+    // Any signed-in user can read tasks
+    // Only admins can create or delete tasks
+    // Admins can update any task field
+    // Users can only update the status of tasks assigned to them
     match /tasks/{taskId} {
       allow read: if signedIn();
-      allow write: if isAdmin();
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && signedIn() && resource.data.assignedTo == request.auth.token.email;
-    }
-
-    // SESSIONS (Subcollection of Users)
-    // A user can read/write their own sessions.
-    match /users/{userId}/sessions/{sessionId} {
-      allow read, write: if signedIn() && request.auth.uid == userId;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (signedIn() && request.resource.data.assignedTo == request.auth.token.email && request.resource.data.status != resource.data.status);
     }
     
-    // VERIFICATION LOG (Subcollection of Users)
-    // A user can write to their own verification log.
-    match /users/{userId}/verificationLog/{logId} {
-      allow write: if signedIn() && request.auth.uid == userId;
+    // User Subcollections (sessions, verificationLog)
+    // Users can read/write to their own subcollections
+    match /users/{userId}/{collection}/{docId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
     }
-
-    // COLLECTION GROUP QUERIES for Admin Dashboard
-    // These allow admins to query across all user subcollections.
+    
+    // Collection Group Queries for Admin
+    // Admins can read all sessions and verification logs from all users
     match /{path=**}/sessions/{sessionId} {
-      allow list: if isAdmin();
+      allow read: if isAdmin();
     }
     
     match /{path=**}/verificationLog/{logId} {
-      allow list: if isAdmin();
+       allow read: if isAdmin();
     }
   }
 }

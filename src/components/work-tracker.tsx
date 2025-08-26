@@ -190,13 +190,14 @@ export function WorkTracker() {
         task: activeTask?.description,
       }
       await addUserSession(user.uid, userSession);
-    }
-    setIsRunning(false);
-    
-    if(activeTask && previousTaskStatus){
+      
+      if (previousTaskStatus && activeTask.status !== 'completed') {
         await updateTaskStatus(activeTask.id, previousTaskStatus);
-        await fetchMyTasks();
+      }
     }
+    
+    setIsRunning(false);
+    await fetchMyTasks();
     setActiveTask(null);
     setPreviousTaskStatus(null);
     setCurrentProject('');
@@ -227,134 +228,136 @@ export function WorkTracker() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 p-4 md:p-6">
-      <div className="lg:col-span-3 flex flex-col gap-8">
-        <Card className="shadow-lg border-primary/20">
-          <CardHeader>
-            <CardTitle>Time Tracker</CardTitle>
-            <CardDescription>{isRunning && activeTask ? `Working on: "${activeTask.description}"` : "Select a task from your list to start tracking."}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-4">
-            <p className="text-6xl font-bold tabular-nums tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent py-2">{isClient ? formatTime(elapsedTime) : '00:00:00'}</p>
-          </CardContent>
-          <CardFooter className="flex justify-center gap-4">
-            {isRunning && (
-              <Button size="lg" variant="secondary" className="w-32" onClick={handleStop}>
-                <Square className="mr-2 h-5 w-5" /> Stop
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
-
-        <Card className="shadow-lg border-primary/20">
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 p-4 md:p-6">
+        <div className="lg:col-span-3 flex flex-col gap-8">
+          <Card className="shadow-lg border-primary/20">
             <CardHeader>
-                <CardTitle>My Assigned Tasks</CardTitle>
-                <CardDescription>Start a task or mark it as complete.</CardDescription>
+              <CardTitle>Time Tracker</CardTitle>
+              <CardDescription>{isRunning && activeTask ? `Working on: "${activeTask.description}"` : "Select a task from your list to start tracking."}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-4">
+              <p className="text-6xl font-bold tabular-nums tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent py-2">{isClient ? formatTime(elapsedTime) : '00:00:00'}</p>
+            </CardContent>
+            <CardFooter className="flex justify-center gap-4">
+              {isRunning && (
+                <Button size="lg" variant="secondary" className="w-32" onClick={handleStop}>
+                  <Square className="mr-2 h-5 w-5" /> Stop
+                </Button>
+              )}
+            </CardFooter>
+          </Card>
+
+          <Card className="shadow-lg border-primary/20">
+              <CardHeader>
+                  <CardTitle>My Assigned Tasks</CardTitle>
+                  <CardDescription>Start a task or mark it as complete.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                  <ScrollArea className="h-96">
+                      <Table>
+                          <TableHeader>
+                              <TableRow>
+                                  <TableHead>Task</TableHead>
+                                  <TableHead>Project</TableHead>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead className="text-right">Action</TableHead>
+                              </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                              {myTasks.length > 0 ? (
+                                  myTasks.map((task) => {
+                                      const project = projects.find(p => p.id === task.projectId);
+                                      const isCompleted = task.status === 'completed';
+                                      const isThisTaskRunning = activeTask?.id === task.id;
+
+                                      return (
+                                      <TableRow key={task.id} className={cn(isThisTaskRunning && 'bg-primary/10')}>
+                                          <TableCell className="font-medium max-w-xs truncate">{task.description}</TableCell>
+                                          <TableCell>{project?.name || 'Loading...'}</TableCell>
+                                          <TableCell>{task.status}</TableCell>
+                                          <TableCell className="text-right">
+                                              {isCompleted ? (
+                                                  <span className="text-sm text-muted-foreground italic">Pending Verification</span>
+                                              ) : (
+                                                  <div className="flex gap-2 justify-end">
+                                                      <Button variant="ghost" size="icon" onClick={() => handleStart(task)} disabled={isRunning && !isThisTaskRunning}>
+                                                          <PlayCircle className="h-5 w-5 text-accent" />
+                                                      </Button>
+                                                      <Button variant="ghost" size="icon" onClick={() => handleMarkTaskComplete(task)} disabled={isRunning}>
+                                                          <CheckCircle className="h-5 w-5 text-green-500" />
+                                                      </Button>
+                                                  </div>
+                                              )}
+                                          </TableCell>
+                                      </TableRow>
+                                      )
+                                  })
+                              ) : (
+                                  <TableRow>
+                                      <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                                          You have no assigned tasks.
+                                      </TableCell>
+                                  </TableRow>
+                              )}
+                          </TableBody>
+                      </Table>
+                  </ScrollArea>
+              </CardContent>
+          </Card>
+          
+          <video ref={videoRef} className="w-0 h-0" autoPlay muted playsInline />
+
+          {isClient && hasCameraPermission === false && (
+              <Alert variant="destructive">
+                  <AlertTitle>Camera Access Required</AlertTitle>
+                  <AlertDescription>
+                  Automatic work verification is disabled. Please allow camera access to use this feature.
+                  </AlertDescription>
+              </Alert>
+          )}
+
+        </div>
+
+        <div className="lg:col-span-2 flex flex-col gap-8">
+           <Card className="shadow-lg border-primary/20">
+            <CardHeader>
+              <CardTitle>Session History</CardTitle>
+              <CardDescription>A log of your recent work sessions.</CardDescription>
             </CardHeader>
             <CardContent>
-                <ScrollArea className="h-96">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Task</TableHead>
-                                <TableHead>Project</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Action</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {myTasks.length > 0 ? (
-                                myTasks.map((task) => {
-                                    const project = projects.find(p => p.id === task.projectId);
-                                    const isCompleted = task.status === 'completed';
-                                    const isThisTaskRunning = activeTask?.id === task.id;
-
-                                    return (
-                                    <TableRow key={task.id} className={cn(isThisTaskRunning && 'bg-primary/10')}>
-                                        <TableCell className="font-medium max-w-xs truncate">{task.description}</TableCell>
-                                        <TableCell>{project?.name || 'Loading...'}</TableCell>
-                                        <TableCell>{task.status}</TableCell>
-                                        <TableCell className="text-right">
-                                            {isCompleted ? (
-                                                <span className="text-sm text-muted-foreground italic">Pending Verification</span>
-                                            ) : (
-                                                <div className="flex gap-2 justify-end">
-                                                    <Button variant="ghost" size="icon" onClick={() => handleStart(task)} disabled={isRunning && !isThisTaskRunning}>
-                                                        <PlayCircle className="h-5 w-5 text-accent" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleMarkTaskComplete(task)} disabled={isRunning}>
-                                                        <CheckCircle className="h-5 w-5 text-green-500" />
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                    )
-                                })
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                                        You have no assigned tasks.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </ScrollArea>
-            </CardContent>
-        </Card>
-        
-        <video ref={videoRef} className="w-0 h-0" autoPlay muted playsInline />
-
-        {isClient && hasCameraPermission === false && (
-            <Alert variant="destructive">
-                <AlertTitle>Camera Access Required</AlertTitle>
-                <AlertDescription>
-                Automatic work verification is disabled. Please allow camera access to use this feature.
-                </AlertDescription>
-            </Alert>
-        )}
-
-      </div>
-
-      <div className="lg:col-span-2 flex flex-col gap-8">
-         <Card className="shadow-lg border-primary/20">
-          <CardHeader>
-            <CardTitle>Session History</CardTitle>
-            <CardDescription>A log of your recent work sessions.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[calc(100vh-12rem)]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Project</TableHead>
-                    <TableHead>Task</TableHead>
-                    <TableHead className="text-right">Duration</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sessions.length > 0 ? (
-                    sessions.map((session, index) => (
-                      <TableRow key={session.id || index}>
-                        <TableCell>{isClient ? session.stopTime.toDate().toLocaleDateString() : ''}</TableCell>
-                        <TableCell>{session.project}</TableCell>
-                        <TableCell className="max-w-[150px] truncate">{session.task}</TableCell>
-                        <TableCell className="text-right">{isClient ? formatTime(session.duration) : ''}</TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
+              <ScrollArea className="h-[calc(100vh-12rem)]">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">No sessions recorded yet.</TableCell>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Task</TableHead>
+                      <TableHead className="text-right">Duration</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {sessions.length > 0 ? (
+                      sessions.map((session, index) => (
+                        <TableRow key={session.id || index}>
+                          <TableCell>{isClient ? session.stopTime.toDate().toLocaleDateString() : ''}</TableCell>
+                          <TableCell>{session.project}</TableCell>
+                          <TableCell className="max-w-[150px] truncate">{session.task}</TableCell>
+                          <TableCell className="text-right">{isClient ? formatTime(session.duration) : ''}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">No sessions recorded yet.</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

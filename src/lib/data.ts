@@ -17,6 +17,7 @@ export type UserSession = {
     duration: number;
     userEmail: string | null;
     project: string;
+    task?: string;
 }
 
 export type VerificationLogEntry = { 

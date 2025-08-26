@@ -211,6 +211,7 @@ export function WorkTracker() {
         duration: duration,
         userEmail: user?.email || 'Anonymous',
         project: currentProject,
+        task: activeTask?.description || taskDescription || '',
       }
       await addUserSession(user.uid, userSession);
     }
@@ -425,6 +426,7 @@ export function WorkTracker() {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Project</TableHead>
+                    <TableHead>Task</TableHead>
                     <TableHead className="text-right">Duration</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -434,12 +436,13 @@ export function WorkTracker() {
                       <TableRow key={session.id || index}>
                         <TableCell>{isClient ? session.stopTime.toDate().toLocaleDateString() : ''}</TableCell>
                         <TableCell>{session.project}</TableCell>
+                        <TableCell className="max-w-[150px] truncate">{session.task}</TableCell>
                         <TableCell className="text-right">{isClient ? formatTime(session.duration) : ''}</TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">No sessions recorded yet.</TableCell>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">No sessions recorded yet.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>

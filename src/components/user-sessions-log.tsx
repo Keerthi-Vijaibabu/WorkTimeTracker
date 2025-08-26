@@ -101,6 +101,7 @@ export function UserSessionsLog() {
               <TableRow>
                 <TableHead>User</TableHead>
                 <TableHead>Project</TableHead>
+                <TableHead>Task</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Start Time</TableHead>
                 <TableHead>End Time</TableHead>
@@ -113,6 +114,7 @@ export function UserSessionsLog() {
                   <TableRow key={session.id}>
                     <TableCell className="font-medium">{session.userEmail}</TableCell>
                     <TableCell>{session.project}</TableCell>
+                    <TableCell className="max-w-[200px] truncate" title={session.task}>{session.task || '-'}</TableCell>
                     <TableCell>{isClient ? session.startTime.toDate().toLocaleDateString() : ''}</TableCell>
                     <TableCell>{isClient ? session.startTime.toDate().toLocaleTimeString() : ''}</TableCell>
                     <TableCell>{isClient ? session.stopTime.toDate().toLocaleTimeString() : ''}</TableCell>
@@ -121,7 +123,7 @@ export function UserSessionsLog() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                     No work sessions recorded for the selected filters.
                   </TableCell>
                 </TableRow>

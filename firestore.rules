@@ -3,6 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // --- Helper Functions ---
     function signedIn() {
       return request.auth != null;
     }
@@ -11,43 +12,57 @@ service cloud.firestore {
       return signedIn() && request.auth.token.admin == true;
     }
 
-    // Rules for collection group queries used by the admin panel
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+    
+    // --- User Profiles ---
+    // Allow users to read their own profile.
+    // Allow admins to read any profile.
+    // Only allow users to create their own profile document.
+    // Admins can update any user's role.
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isAdmin(); // Only admins can change roles
+      allow delete: if isAdmin(); // Only admins can delete users
+      
+      // --- Subcollections ---
+      // Users can only read/write to their own subcollections.
+      match /sessions/{sessionId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      match /verificationLog/{logId} {
+         allow read, write: if isOwner(userId);
+      }
+    }
+    
+    // --- Collection Group Queries (for Admin Dashboard) ---
+    // Admins need read access to these collection groups.
     match /{path=**}/sessions/{sessionId} {
       allow read: if isAdmin();
     }
-    
     match /{path=**}/verificationLog/{logId} {
       allow read: if isAdmin();
     }
 
-    // User-specific rules
-    match /users/{userId} {
-      allow read, write: if request.auth.uid == userId || isAdmin();
-
-      // Sessions can be created by the user, and read by the user or an admin.
-      match /sessions/{sessionId} {
-        allow create: if request.auth.uid == userId;
-        // Read access is handled by the user-specific rule above and the collection group rule
-      }
-
-      // Verification logs can be created by the user, and read by an admin.
-      match /verificationLog/{logId} {
-        allow create: if request.auth.uid == userId;
-        // Read access for admins is handled by the collection group rule.
-      }
-    }
-    
+    // --- Projects ---
+    // Any signed-in user can read projects.
+    // Only admins can create, update, or delete projects.
     match /projects/{projectId} {
       allow read: if signedIn();
       allow write: if isAdmin();
     }
-
+    
+    // --- Tasks ---
+    // Any signed-in user can read tasks (to see project assignments).
+    // Only admins can create new tasks.
+    // Admins or the assigned user can update a task.
     match /tasks/{taskId} {
       allow read: if signedIn();
       allow create: if isAdmin();
-      // Admins can update any field.
-      // Users can only update the status of a task assigned to them.
-      allow update: if isAdmin() || (request.auth.uid != null && request.resource.data.assignedTo == request.auth.token.email && request.resource.diff(resource).affectedKeys().hasOnly(['status']));
+      allow update: if isAdmin() || (isOwner(request.resource.data.assignedTo) && request.resource.data.assignedTo == resource.data.assignedTo);
     }
   }
 }

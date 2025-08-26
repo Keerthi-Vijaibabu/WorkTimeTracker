@@ -3,66 +3,66 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Helper Functions ---
     function signedIn() {
       return request.auth != null;
     }
 
     function isAdmin() {
+      // Check for a custom claim on the auth token.
       return signedIn() && request.auth.token.admin == true;
     }
 
-    function isOwner(userId) {
-      return signedIn() && request.auth.uid == userId;
-    }
-    
-    // --- User Profiles ---
-    // Allow users to read their own profile.
-    // Allow admins to read any profile.
-    // Only allow users to create their own profile document.
-    // Admins can update any user's role.
+    // USERS
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId);
-      allow update: if isAdmin(); // Only admins can change roles
-      allow delete: if isAdmin(); // Only admins can delete users
-      
-      // --- Subcollections ---
-      // Users can only read/write to their own subcollections.
-      match /sessions/{sessionId} {
-        allow read, write: if isOwner(userId);
-      }
-      
-      match /verificationLog/{logId} {
-         allow read, write: if isOwner(userId);
-      }
-    }
-    
-    // --- Collection Group Queries (for Admin Dashboard) ---
-    // Admins need read access to these collection groups.
-    match /{path=**}/sessions/{sessionId} {
-      allow read: if isAdmin();
-    }
-    match /{path=**}/verificationLog/{logId} {
-      allow read: if isAdmin();
+      // A user can read their own document. Admins can read any user document.
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      // A user can update their own document. Admins can update any user document.
+      allow update: if signedIn() && (request.auth.uid == userId || isAdmin());
+      // Any signed in user can create their own user document on signup.
+      allow create: if signedIn() && request.auth.uid == userId;
+       // Admins can delete users.
+      allow delete: if isAdmin();
     }
 
-    // --- Projects ---
-    // Any signed-in user can read projects.
-    // Only admins can create, update, or delete projects.
+    // PROJECTS
     match /projects/{projectId} {
+      // Any signed-in user can read projects. Admins can write.
       allow read: if signedIn();
       allow write: if isAdmin();
     }
-    
-    // --- Tasks ---
-    // Any signed-in user can read tasks (to see project assignments).
-    // Only admins can create new tasks.
-    // Admins or the assigned user can update a task.
+
+    // TASKS
     match /tasks/{taskId} {
+      // Any signed-in user can read tasks. Admins can write.
       allow read: if signedIn();
-      allow create: if isAdmin();
-      allow update: if isAdmin() || (isOwner(request.resource.data.assignedTo) && request.resource.data.assignedTo == resource.data.assignedTo);
+      allow write: if isAdmin();
+      // Allow a user to update the status of a task assigned to them.
+      allow update: if signedIn() && (isAdmin() || (request.resource.data.assignedTo == request.auth.token.email && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])));
+    }
+    
+    // SESSIONS (Subcollection of Users)
+    match /users/{userId}/sessions/{sessionId} {
+      // Users can write to their own sessions subcollection.
+      // Admins can read any session. This rule does NOT cover collection group queries.
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if signedIn() && request.auth.uid == userId;
+    }
+
+    // VERIFICATION LOG (Subcollection of Users)
+     match /users/{userId}/verificationLog/{logId} {
+      // Users can write to their own verification log.
+      allow write: if signedIn() && request.auth.uid == userId;
+    }
+
+    // RULES FOR COLLECTION GROUP QUERIES (Needed for Admin Dashboard)
+    match /{path=**}/sessions/{sessionId} {
+        // Admins can list all sessions from all users.
+        allow list: if isAdmin();
+    }
+
+    match /{path=**}/verificationLog/{logId} {
+       // Admins can list all verification logs from all users.
+       allow list: if isAdmin();
     }
   }
 }

@@ -14,7 +14,7 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter, usePathname } from 'next/navigation';
-import { isAdmin as checkIsAdmin, createUserDocument } from "@/lib/data";
+import { checkIsAdmin, createUserDocument } from "@/lib/data";
 
 type AuthContextType = {
   user: User | null;
@@ -48,7 +48,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(true);
       if (user) {
         await createUserDocument(user.uid, user.email!);
-        const adminStatus = await checkIsAdmin(user.uid);
+        const idTokenResult = await user.getIdTokenResult();
+        const adminStatus = !!idTokenResult.claims.admin;
         setUser(user);
         setIsAdminUser(adminStatus);
       } else {

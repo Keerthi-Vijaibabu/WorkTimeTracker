@@ -74,13 +74,10 @@ export const deleteUser = async (userId: string) => {
 
 
 export const isAdmin = async (uid: string | undefined): Promise<boolean> => {
-    if (!uid) return false;
+    if (!auth.currentUser) return false;
     try {
-        const userDoc = await getDoc(doc(db, 'users', uid));
-        if (userDoc.exists()) {
-            return userDoc.data().role === 'admin';
-        }
-        return false;
+        const token = await auth.currentUser.getIdTokenResult();
+        return !!token.claims.admin;
     } catch (error) {
         console.error("Error checking admin status:", error);
         return false;

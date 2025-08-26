@@ -24,6 +24,7 @@ export function UserSessionsLog() {
     setIsClient(true);
     let unsubscribe: (() => void) | undefined;
     if (user) {
+        // For the admin view, we call getUserSessions without a UID to get all sessions.
         unsubscribe = getUserSessions(setSessions);
     }
     

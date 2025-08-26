@@ -3,65 +3,67 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
   
-    // Helper functions
     function signedIn() {
-      return request.auth != null;
+      return request.auth.uid != null;
     }
-    
+
     function isAdmin() {
+      // Check if the user is signed in and if their role in the /users collection is 'admin'
       return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-
-    // User profiles
-    // Users can read their own profile
-    // Admins can read any profile
-    // Users can only create their own profile document
-    // Users can update their own profile, admins can update any
+    
+    // Rules for the 'users' collection
     match /users/{userId} {
-      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
-      allow create: if signedIn() && request.auth.uid == userId;
-      allow update: if signedIn() && (request.auth.uid == userId || isAdmin());
-      allow delete: if isAdmin();
-    }
-
-    // Allow admins to list all users
-    match /users/{document=**} {
-        allow list: if isAdmin();
+      // A user can read or write to their own user document
+      allow read, write: if signedIn() && request.auth.uid == userId;
+      // An admin can update or delete any user document
+      allow update, delete: if isAdmin();
+      // Any signed-in user can create a user document (on signup)
+      allow create: if signedIn();
     }
     
-    // Projects
-    // Any signed-in user can read projects
-    // Only admins can create, update, or delete projects
-    match /projects/{projectId} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
-    }
-    
-    // Tasks
-    // Any signed-in user can read tasks
-    // Only admins can create or delete tasks
-    // Admins can update any task field
-    // Users can only update the status of tasks assigned to them
-    match /tasks/{taskId} {
-      allow read: if signedIn();
-      allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (signedIn() && request.resource.data.assignedTo == request.auth.token.email && request.resource.data.status != resource.data.status);
-    }
-    
-    // User Subcollections (sessions, verificationLog)
-    // Users can read/write to their own subcollections
-    match /users/{userId}/{collection}/{docId} {
+    // Rules for user-specific subcollections
+    match /users/{userId}/sessions/{sessionId} {
+        // A user can read and write to their own sessions
         allow read, write: if signedIn() && request.auth.uid == userId;
     }
     
-    // Collection Group Queries for Admin
-    // Admins can read all sessions and verification logs from all users
+    match /users/{userId}/verificationLog/{logId} {
+        // A user can read and write to their own verification logs
+        allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    // Rules for collection group queries - needed for admin dashboard
     match /{path=**}/sessions/{sessionId} {
-      allow read: if isAdmin();
+        // An admin can read (list) all sessions from all users
+        allow read: if isAdmin();
     }
     
     match /{path=**}/verificationLog/{logId} {
-       allow read: if isAdmin();
+         // An admin can read (list) all verification logs from all users
+        allow read: if isAdmin();
+    }
+
+    // Rules for 'projects' collection
+    match /projects/{projectId} {
+      // Any signed-in user can read projects
+      allow read: if signedIn();
+      // Only admins can write (create, update, delete) projects
+      allow write: if isAdmin();
+    }
+    
+    // Rules for 'tasks' collection
+    match /tasks/{taskId} {
+      // Any signed-in user can read tasks
+      allow read: if signedIn();
+      // Only admins can create, update, or delete tasks entirely
+      allow create, delete: if isAdmin();
+      // For updates, allow admin OR allow the assigned user to change the status
+      allow update: if isAdmin() || (
+        signedIn() && 
+        request.auth.token.email == resource.data.assignedTo &&
+        request.resource.data.status != resource.data.status
+      );
     }
   }
 }

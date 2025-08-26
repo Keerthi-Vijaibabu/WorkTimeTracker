@@ -1,8 +1,9 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     function signedIn() {
       return request.auth != null;
     }
@@ -12,39 +13,33 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, create: if signedIn();
-      allow update: if request.auth.uid == userId;
-      
-      // Sessions can be read by the owner or any admin. Only owners can create.
+      allow read, update, delete: if request.auth.uid == userId || isAdmin();
+      allow create: if signedIn();
+
       match /sessions/{sessionId} {
-        allow create: if request.auth.uid == userId;
-        allow read: if request.auth.uid == userId || isAdmin();
+        allow read, write: if request.auth.uid == userId;
       }
 
-      // Verification logs can be read by any admin. Only owners can create.
       match /verificationLog/{logId} {
-        allow create: if request.auth.uid == userId;
-        allow read: if isAdmin();
+        allow read, write: if request.auth.uid == userId;
       }
     }
-    
+
     match /projects/{projectId} {
       allow read: if signedIn();
       allow write: if isAdmin();
     }
-    
+
     match /tasks/{taskId} {
       allow read: if signedIn();
-      // Admins can write to any task.
-      // Workers can only update the status of a task assigned to them.
-      allow write: if isAdmin() || (
-        signedIn() && 
-        resource.data.assignedTo == request.auth.token.email &&
-        request.resource.data.keys().hasOnly(['status'])
-      );
+      allow create: if isAdmin();
+      allow update: if isAdmin() || 
+                      (signedIn() && 
+                       resource.data.assignedTo == request.auth.token.email && 
+                       request.resource.data.keys().hasOnly(['status']));
     }
-    
-    // Collection group queries
+
+    // Collection Group queries
     match /{path=**}/sessions/{sessionId} {
       allow read: if isAdmin();
     }

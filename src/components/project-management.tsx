@@ -18,11 +18,11 @@ export function ProjectManagement() {
   const [tasks, setTasks] = useState<Task[]>([]);
 
   const fetchProjects = async () => {
-    setProjects(await getProjects());
+    if(user) setProjects(await getProjects());
   }
 
   const fetchTasks = async () => {
-    setTasks(await getTasks());
+    if(user) setTasks(await getTasks());
   }
 
   useEffect(() => {

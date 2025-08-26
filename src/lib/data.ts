@@ -67,15 +67,14 @@ export const updateUserRole = async (userId: string, role: 'admin' | 'worker') =
 
 export const isAdmin = async (uid: string | undefined): Promise<boolean> => {
     if (!uid) return false;
-    const userRef = doc(db, "users", uid);
-    const userSnap = await getDoc(userRef);
-
-    if (!userSnap.exists()) {
-       return false;
+    try {
+        // Force refresh the token to get the latest custom claims
+        const idTokenResult = await auth.currentUser?.getIdTokenResult(true);
+        return idTokenResult?.claims.admin === true;
+    } catch (error) {
+        console.error("Error checking admin status:", error);
+        return false;
     }
-    
-    const user = userSnap.data() as Omit<User, 'id'>;
-    return user.role === 'admin';
 };
 
 export const createUserDocument = async (uid: string, email: string) => {

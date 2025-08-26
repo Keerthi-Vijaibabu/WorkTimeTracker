@@ -8,8 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/hooks/use-auth';
 
 export function UserSessionsLog() {
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -20,16 +22,23 @@ export function UserSessionsLog() {
 
   useEffect(() => {
     setIsClient(true);
-    const unsubscribe = getUserSessions(setSessions);
+    let unsubscribe: (() => void) | undefined;
+    if (user) {
+        unsubscribe = getUserSessions(setSessions);
+    }
     
     const fetchInitialData = async () => {
-        setProjects(await getProjects());
-        setUsers(await getUsers());
+        if(user) {
+            setProjects(await getProjects());
+            setUsers(await getUsers());
+        }
     }
     fetchInitialData();
 
-    return () => unsubscribe();
-  }, []);
+    return () => {
+        if(unsubscribe) unsubscribe()
+    };
+  }, [user]);
 
   const formatTime = useCallback((time: number) => {
     const totalSeconds = Math.floor(time / 1000);

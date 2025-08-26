@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { Progress } from "@/components/ui/progress";
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -23,12 +23,19 @@ export function AdminDashboard() {
   const { user, isAdmin } = useAuth();
   const [log, setLog] = useState<VerificationLogEntry[]>([]);
   const [isClient, setIsClient] = useState(false);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(true);
 
   useEffect(() => {
     setIsClient(true);
     let unsubscribe: (() => void) | undefined;
     if (user && isAdmin) {
-      unsubscribe = getVerificationLog(setLog);
+        setIsLoadingLogs(true);
+      unsubscribe = getVerificationLog((logs) => {
+        // Sort logs client-side as a fallback
+        const sortedLogs = logs.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+        setLog(sortedLogs);
+        setIsLoadingLogs(false);
+      });
     }
     return () => {
       if (unsubscribe) {
@@ -73,7 +80,13 @@ export function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {log.length > 0 ? (
+                    {isLoadingLogs ? (
+                         <TableRow>
+                            <TableCell colSpan={5} className="h-24 text-center">
+                                <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                            </TableCell>
+                        </TableRow>
+                    ) : log.length > 0 ? (
                       log.map((entry) => (
                         <TableRow key={entry.id}>
                            <TableCell>{entry.userEmail}</TableCell>

@@ -1,38 +1,52 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     function signedIn() {
-      return request.auth != null;
-    }
-    
-    function isAdmin() {
-        return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return request.auth.uid != null;
     }
 
-    match /users/{userId}/{documents=**} {
-      allow read, write: if signedIn() && request.auth.uid == userId;
+    function isAdmin() {
+      // Security rules cannot access other documents in collection group queries.
+      // We must check for a custom claim. For this app, we'll read from the user's doc.
+      // This means collection group queries will only work if there's a broader rule.
+      return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId;
+      // Admins can read user profiles
+      allow get: if isAdmin();
+    }
+    
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth.uid == userId;
     }
     
     match /projects/{projectId} {
-        allow read: if signedIn();
-        allow write: if isAdmin();
-    }
-    
-    match /tasks/{taskId} {
-        allow read: if signedIn();
-        allow create, update: if isAdmin();
-        allow update: if signedIn() && request.auth.token.email == request.resource.data.assignedTo && request.resource.data.status != resource.data.status;
+      allow read: if signedIn();
+      allow write: if isAdmin();
     }
 
-    // Rules for collection group queries by admins
+    match /tasks/{taskId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+      // Allow user to update status of a task assigned to them
+      allow update: if signedIn() 
+                    && request.auth.token.email == request.resource.data.assignedTo
+                    && (request.resource.data.diff(request.resource.data).affectedKeys().hasOnly(['status']));
+    }
+
+    // Rules for Collection Group queries for Admins
+    // This allows an admin to query across all 'sessions' or 'verificationLog' collections.
     match /{path=**}/sessions/{sessionId} {
-      allow read: if isAdmin();
+      allow list, get: if isAdmin();
     }
 
     match /{path=**}/verificationLog/{logId} {
-      allow read: if isAdmin();
+      allow list, get: if isAdmin();
     }
   }
 }

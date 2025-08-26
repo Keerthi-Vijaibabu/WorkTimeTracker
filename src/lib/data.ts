@@ -161,7 +161,7 @@ export const addUserSession = async (uid: string, session: Omit<UserSession, 'id
 
 // Verification Log
 export const getVerificationLog = (callback: (logs: VerificationLogEntry[]) => void) => {
-    const q = query(collectionGroup(db, 'verificationLog'));
+    const q = query(collectionGroup(db, 'verificationLog'), orderBy('timestamp', 'desc'));
     
     return onSnapshot(q, (querySnapshot) => {
         const logs: VerificationLogEntry[] = [];
@@ -169,8 +169,13 @@ export const getVerificationLog = (callback: (logs: VerificationLogEntry[]) => v
             logs.push({ id: doc.id, ...doc.data() } as VerificationLogEntry);
         });
         callback(logs);
+    }, (error) => {
+        console.error("Error fetching verification logs: ", error);
+        // Pass an empty array or handle the error as needed
+        callback([]);
     });
 };
+
 
 export const addVerificationLog = async (uid: string, log: Omit<VerificationLogEntry, 'id'>) => {
     if (!uid) throw new Error("User not authenticated");

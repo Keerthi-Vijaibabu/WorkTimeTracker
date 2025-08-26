@@ -19,6 +19,12 @@ export function UserSessionsLog() {
   const [selectedUser, setSelectedUser] = useState<string>('all');
   const [selectedProject, setSelectedProject] = useState<string>('all');
 
+  const fetchInitialData = useCallback(async () => {
+    if(user) {
+        setProjects(await getProjects());
+        setUsers(await getUsers());
+    }
+  }, [user]);
 
   useEffect(() => {
     setIsClient(true);
@@ -28,18 +34,12 @@ export function UserSessionsLog() {
         unsubscribe = getUserSessions(setSessions);
     }
     
-    const fetchInitialData = async () => {
-        if(user) {
-            setProjects(await getProjects());
-            setUsers(await getUsers());
-        }
-    }
     fetchInitialData();
 
     return () => {
         if(unsubscribe) unsubscribe()
     };
-  }, [user]);
+  }, [user, fetchInitialData]);
 
   const formatTime = useCallback((time: number) => {
     const totalSeconds = Math.floor(time / 1000);

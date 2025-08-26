@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/use-auth';
 import type { UserSession, Task, Project } from '@/lib/data';
 import { addUserSession, addVerificationLog, getProjects, getTasks, updateTaskStatus, getUserSessions } from '@/lib/data';
 import { Timestamp } from 'firebase/firestore';
+import { cn } from '@/lib/utils';
 
 
 export function WorkTracker() {
@@ -126,9 +127,11 @@ export function WorkTracker() {
   }, [user?.email]);
   
   const fetchProjects = useCallback(async () => {
-    const projectList = await getProjects();
-    setProjects(projectList);
-  }, []);
+    if (user) {
+      const projectList = await getProjects();
+      setProjects(projectList);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user) return; 
@@ -355,5 +358,3 @@ export function WorkTracker() {
     </div>
   );
 }
-
-    

@@ -20,14 +20,14 @@ import { useAuth } from '@/hooks/use-auth';
 
 
 export function AdminDashboard() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [log, setLog] = useState<VerificationLogEntry[]>([]);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
     let unsubscribe: (() => void) | undefined;
-    if (user?.email) {
+    if (user && isAdmin) {
       unsubscribe = getVerificationLog(setLog);
     }
     return () => {
@@ -35,7 +35,7 @@ export function AdminDashboard() {
         unsubscribe();
       }
     };
-  }, [user]);
+  }, [user, isAdmin]);
   
   return (
     <div className="p-4 md:p-6">

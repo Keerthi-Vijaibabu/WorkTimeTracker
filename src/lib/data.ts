@@ -1,7 +1,7 @@
 
 import { type VerifyWorkingOutput } from "@/ai/flows/verify-working-flow";
 import { db, auth } from './firebase';
-import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, Timestamp, orderBy, onSnapshot, getDoc, setDoc, collectionGroup } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, serverTimestamp, doc, updateDoc, Timestamp, orderBy, onSnapshot, getDoc, setDoc, collectionGroup, deleteDoc } from 'firebase/firestore';
 
 // Data types
 export type Session = {
@@ -63,6 +63,13 @@ export const getUsers = async (): Promise<User[]> => {
 export const updateUserRole = async (userId: string, role: 'admin' | 'worker') => {
     const userRef = doc(db, "users", userId);
     await updateDoc(userRef, { role });
+};
+
+export const deleteUser = async (userId: string) => {
+    const userRef = doc(db, 'users', userId);
+    await deleteDoc(userRef);
+    // Note: Deleting from Firebase Auth requires admin privileges and is typically done server-side.
+    // This function only removes the user from the Firestore 'users' collection.
 };
 
 

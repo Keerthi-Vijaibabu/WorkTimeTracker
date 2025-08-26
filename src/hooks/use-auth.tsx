@@ -45,10 +45,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setLoading(true);
       if (user) {
-        setUser(user);
         await createUserDocument(user.uid, user.email!);
         const adminStatus = await checkIsAdmin(user.uid);
+        setUser(user);
         setIsAdminUser(adminStatus);
       } else {
         setUser(null);
@@ -92,21 +93,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const isAuthPage = pathname === '/login' || pathname === '/signup';
-  
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
-  }
-  
-  if (!user && !isAuthPage) {
-    router.push('/login');
-    return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
-  }
-  
-  if(user && isAuthPage) {
-      router.push('/');
-      return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
-  }
 
+  useEffect(() => {
+    if (!loading && !user && !isAuthPage) {
+      router.push('/login');
+    }
+    if (!loading && user && isAuthPage) {
+      router.push('/');
+    }
+  }, [user, loading, isAuthPage, router]);
+  
+  if (loading || (!user && !isAuthPage) || (user && isAuthPage)) {
+    return <div className="flex items-center justify-center h-screen w-full">Loading...</div>;
+  }
+  
   return (
     <AuthContext.Provider value={value}>
       {children}

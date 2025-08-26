@@ -2,20 +2,15 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { suggestProject, type SuggestProjectOutput } from '@/ai/flows/suggest-project-flow';
 import { verifyWorking } from '@/ai/flows/verify-working-flow';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Square, BrainCircuit, Loader2, PlayCircle, CheckCircle } from 'lucide-react';
-import { Skeleton } from "@/components/ui/skeleton";
+import { PlayCircle, Square, CheckCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from '@/hooks/use-auth';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import type { UserSession, Task, Project } from '@/lib/data';
 import { addUserSession, addVerificationLog, getProjects, getTasks, updateTaskStatus, getUserSessions } from '@/lib/data';
 import { Timestamp } from 'firebase/firestore';
@@ -32,11 +27,6 @@ export function WorkTracker() {
   const [myTasks, setMyTasks] = useState<Task[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [previousTaskStatus, setPreviousTaskStatus] = useState<Task['status'] | null>(null);
-
-
-  const [taskDescription, setTaskDescription] = useState('');
-  const [suggestion, setSuggestion] = useState<SuggestProjectOutput | null>(null);
-  const [isSuggesting, setIsSuggesting] = useState(false);
   
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -75,7 +65,7 @@ export function WorkTracker() {
       toast({
         variant: 'destructive',
         title: 'Camera Access Denied',
-        description: 'Please enable camera permissions in your browser settings for automatic work verification.',
+        description: 'Please enable camera permissions for automatic work verification.',
       });
       return false;
     }
@@ -102,7 +92,6 @@ export function WorkTracker() {
         console.log("Work verification successful", result);
       } catch (error) {
         console.error("Automatic verification failed", error);
-        // We don't show a toast here to keep it hidden from the user
       }
     }
   }, [sessions, formatTime, user]);
@@ -142,7 +131,7 @@ export function WorkTracker() {
   }, []);
 
   useEffect(() => {
-    if (!user) return; // Don't fetch data until user is loaded
+    if (!user) return; 
 
     fetchMyTasks();
     fetchProjects();
@@ -159,41 +148,25 @@ export function WorkTracker() {
     };
   }, [user, fetchMyTasks, fetchProjects]);
 
-  const handleStart = async (task: Task | null = null) => {
-    let projectToStart = '';
-    
+  const handleStart = async (task: Task) => {
     const cameraReady = await getCameraPermission();
     if (!cameraReady) {
         toast({ variant: 'destructive', title: 'Camera Required', description: 'Camera access is required to start tracking.' });
         return;
     }
     
-    if (task) {
-        const project = projects.find(p => p.id === task.projectId);
-        if(project) {
-            projectToStart = project.name;
-            setCurrentProject(project.name);
-            setTaskDescription(task.description);
-            setActiveTask(task);
-            setPreviousTaskStatus(task.status);
-            await updateTaskStatus(task.id, 'inprogress');
-            await fetchMyTasks();
-        } else {
-             toast({ variant: 'destructive', title: 'Error', description: 'Project for this task not found.' });
-             return;
-        }
+    const project = projects.find(p => p.id === task.projectId);
+    if(project) {
+        setCurrentProject(project.name);
+        setActiveTask(task);
+        setPreviousTaskStatus(task.status);
+        await updateTaskStatus(task.id, 'inprogress');
+        await fetchMyTasks();
     } else {
-        projectToStart = currentProject;
+         toast({ variant: 'destructive', title: 'Error', description: 'Project for this task not found.' });
+         return;
     }
-
-    if (!projectToStart) {
-      toast({
-        variant: 'destructive',
-        title: 'Project not selected',
-        description: 'Please select a project or start from a task.',
-      });
-      return;
-    }
+    
     const now = new Date();
     setStartTime(now);
     setIsRunning(true);
@@ -201,7 +174,7 @@ export function WorkTracker() {
   };
 
   const handleStop = async () => {
-    if (startTime && user?.uid) {
+    if (startTime && user?.uid && activeTask) {
       const stopTime = new Date();
       const duration = stopTime.getTime() - startTime.getTime();
       
@@ -211,7 +184,7 @@ export function WorkTracker() {
         duration: duration,
         userEmail: user?.email || 'Anonymous',
         project: currentProject,
-        task: activeTask?.description || taskDescription || '',
+        task: activeTask?.description,
       }
       await addUserSession(user.uid, userSession);
     }
@@ -223,6 +196,7 @@ export function WorkTracker() {
     }
     setActiveTask(null);
     setPreviousTaskStatus(null);
+    setCurrentProject('');
     
     if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
@@ -231,33 +205,7 @@ export function WorkTracker() {
     }
     setHasCameraPermission(null);
   };
-
-  const handleSuggestProject = async () => {
-    if (!taskDescription.trim()) {
-      toast({ variant: "destructive", title: "Error", description: "Please enter a task description." });
-      return;
-    }
-    setIsSuggesting(true);
-    setSuggestion(null);
-    try {
-      const recentProjectsForSuggestion = projects.map(p => ({
-        name: p.name,
-        client: p.client,
-        date: new Date().toISOString() // Using current date as a placeholder
-      }));
-      const result = await suggestProject({ currentTaskDescription: taskDescription, recentProjects: recentProjectsForSuggestion });
-      setSuggestion(result);
-      if (result.suggestedProjectName) {
-        setCurrentProject(result.suggestedProjectName);
-      }
-    } catch (error) {
-      console.error(error);
-      toast({ variant: "destructive", title: "AI Suggestion Failed", description: "Could not get project suggestion. Please try again." });
-    } finally {
-      setIsSuggesting(false);
-    }
-  };
-
+  
   const handleMarkTaskComplete = async (task: Task) => {
     try {
         await updateTaskStatus(task.id, 'completed');
@@ -281,30 +229,13 @@ export function WorkTracker() {
         <Card className="shadow-lg border-primary/20">
           <CardHeader>
             <CardTitle>Time Tracker</CardTitle>
-            <CardDescription>{activeTask ? `Working on: "${activeTask.description}"` : "Select a project, then start your work session."}</CardDescription>
+            <CardDescription>{isRunning && activeTask ? `Working on: "${activeTask.description}"` : "Select a task from your list to start tracking."}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
-            <div className="w-full max-w-sm">
-                <Label htmlFor="project-select">Project</Label>
-                <Select value={currentProject} onValueChange={setCurrentProject} disabled={isRunning}>
-                    <SelectTrigger id="project-select">
-                        <SelectValue placeholder="Select a project" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {projects.map(p => (
-                            <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
             <p className="text-6xl font-bold tabular-nums tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent py-2">{isClient ? formatTime(elapsedTime) : '00:00:00'}</p>
           </CardContent>
           <CardFooter className="flex justify-center gap-4">
-            {!isRunning ? (
-              <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90 w-32" onClick={() => handleStart()}>
-                <Play className="mr-2 h-5 w-5" /> Start
-              </Button>
-            ) : (
+            {isRunning && (
               <Button size="lg" variant="secondary" className="w-32" onClick={handleStop}>
                 <Square className="mr-2 h-5 w-5" /> Stop
               </Button>
@@ -318,7 +249,7 @@ export function WorkTracker() {
                 <CardDescription>Start a task or mark it as complete.</CardDescription>
             </CardHeader>
             <CardContent>
-                <ScrollArea className="h-48">
+                <ScrollArea className="h-96">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -333,8 +264,10 @@ export function WorkTracker() {
                                 myTasks.map((task) => {
                                     const project = projects.find(p => p.id === task.projectId);
                                     const isCompleted = task.status === 'completed';
+                                    const isThisTaskRunning = activeTask?.id === task.id;
+
                                     return (
-                                    <TableRow key={task.id}>
+                                    <TableRow key={task.id} className={cn(isThisTaskRunning && 'bg-primary/10')}>
                                         <TableCell className="font-medium max-w-xs truncate">{task.description}</TableCell>
                                         <TableCell>{project?.name || 'Loading...'}</TableCell>
                                         <TableCell>{task.status}</TableCell>
@@ -343,7 +276,7 @@ export function WorkTracker() {
                                                 <span className="text-sm text-muted-foreground italic">Pending Verification</span>
                                             ) : (
                                                 <div className="flex gap-2 justify-end">
-                                                    <Button variant="ghost" size="icon" onClick={() => handleStart(task)} disabled={isRunning}>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleStart(task)} disabled={isRunning && !isThisTaskRunning}>
                                                         <PlayCircle className="h-5 w-5 text-accent" />
                                                     </Button>
                                                     <Button variant="ghost" size="icon" onClick={() => handleMarkTaskComplete(task)} disabled={isRunning}>
@@ -382,45 +315,13 @@ export function WorkTracker() {
       </div>
 
       <div className="lg:col-span-2 flex flex-col gap-8">
-        <Card className="shadow-lg border-primary/20">
-          <CardHeader>
-            <CardTitle>AI Assistant</CardTitle>
-            <CardDescription>Get a project suggestion for a new task.</CardDescription>
-          </CardHeader>
-          <CardContent>
-             <div className="space-y-4">
-              <Textarea
-                placeholder="Describe your current task... e.g., 'fixing bugs on the checkout page'"
-                value={taskDescription}
-                onChange={(e) => setTaskDescription(e.target.value)}
-                rows={3}
-                disabled={isRunning}
-              />
-              <Button onClick={handleSuggestProject} disabled={isSuggesting || isRunning} className="w-full">
-                {isSuggesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
-                Suggest Project
-              </Button>
-              {isSuggesting && <Skeleton className="h-24 w-full" />}
-              {suggestion && (
-                <Card className="bg-muted/50">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Suggested Project: {suggestion.suggestedProjectName}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">{suggestion.reason}</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </CardContent>
-        </Card>
          <Card className="shadow-lg border-primary/20">
           <CardHeader>
             <CardTitle>Session History</CardTitle>
             <CardDescription>A log of your recent work sessions.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-48">
+            <ScrollArea className="h-[calc(100vh-12rem)]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -454,3 +355,5 @@ export function WorkTracker() {
     </div>
   );
 }
+
+    

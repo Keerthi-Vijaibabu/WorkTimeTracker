@@ -161,7 +161,7 @@ export const addUserSession = async (uid: string, session: Omit<UserSession, 'id
 
 // Verification Log
 export const getVerificationLog = (callback: (logs: VerificationLogEntry[]) => void) => {
-    const q = query(collectionGroup(db, 'verificationLog'), orderBy('timestamp', 'desc'));
+    const q = query(collectionGroup(db, 'verificationLog'));
     
     return onSnapshot(q, (querySnapshot) => {
         const logs: VerificationLogEntry[] = [];

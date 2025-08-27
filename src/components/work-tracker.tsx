@@ -39,16 +39,6 @@ export function WorkTracker() {
     setIsClient(true);
   }, []);
 
-  // Effect for AdSense
-  useEffect(() => {
-    try {
-      // @ts-ignore
-      (window.adsbygoogle = window.adsbygoogle || []).push({});
-    } catch (err) {
-      console.error("AdSense error:", err);
-    }
-  }, []);
-
   const { toast } = useToast();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 

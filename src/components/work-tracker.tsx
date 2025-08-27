@@ -235,7 +235,7 @@ export function WorkTracker() {
 
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 p-4 md:p-6 pb-20">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 p-4 md:p-6">
         <div className="lg:col-span-3 flex flex-col gap-8">
           <Card className="shadow-lg border-primary/20">
             <CardHeader>
@@ -364,7 +364,7 @@ export function WorkTracker() {
           </Card>
         </div>
       </div>
-      <div className="fixed bottom-0 left-0 w-full h-16 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+      <footer className="w-full p-4 flex justify-center">
         <div className="w-full max-w-4xl">
              <ins className="adsbygoogle"
                 style={{ display: 'block' }}
@@ -373,7 +373,7 @@ export function WorkTracker() {
                 data-ad-format="auto"
                 data-full-width-responsive="true"></ins>
         </div>
-      </div>
+      </footer>
     </>
   );
 }
